@@ -1,0 +1,49 @@
+hydra:
+  searchpath:
+    - file://verl/trainer/config
+
+defaults:
+  - ppo_trainer
+  - actor@actor_a_rollout_ref.actor: ${model_engine}_actor
+  - ref@actor_a_rollout_ref.ref: ${model_engine}_ref
+  - rollout@actor_a_rollout_ref.rollout: rollout
+  - model@actor_a_rollout_ref.model: hf_model
+  - actor@actor_b_rollout_ref.actor: ${model_engine}_actor
+  - ref@actor_b_rollout_ref.ref: ${model_engine}_ref
+  - rollout@actor_b_rollout_ref.rollout: rollout
+  - model@actor_b_rollout_ref.model: hf_model
+  - _self_
+
+actor_a_rollout_ref:
+  hybrid_engine: true
+  nccl_timeout: 600
+  actor:
+    use_kl_loss: false
+
+actor_b_rollout_ref:
+  hybrid_engine: true
+  nccl_timeout: 600
+  actor:
+    use_kl_loss: false
+
+dual_agent:
+  actor_a:
+    nnodes: 1
+    n_gpus_per_node: 4
+  actor_b:
+    nnodes: 1
+    n_gpus_per_node: 4
+    system_prompt: "You are Agent B. Interact naturally with Agent A and pursue your own task objective."
+  rollout:
+    n: 1
+    num_workers: 8
+    max_turns: 4
+    max_tokens_per_turn: 256
+    stop_strings: []
+
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+
+critic:
+  enable: false

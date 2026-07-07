@@ -1,0 +1,11 @@
+interaction:
+  - name: onboarding_user
+    class_name: "recipe.digital_onboarding.interactions.OpenAICompatibleOnboardingUserInteraction"
+    config:
+      endpoint: "http://127.0.0.1:8000/v1/chat/completions"
+      model: "/mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/stock-rl-reflect/data/Qwen3-8B"
+      max_tokens: 512
+      temperature: 0.2
+      timeout: 60
+      fallback_to_rule: true
+      termination_signal: "[[TERMINATE CHAT]]"

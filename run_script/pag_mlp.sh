@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_DIR=/mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/stock-rl-reflect
+export https_proxy="http://hexin:hx300033@10.217.180.65:30100"
+export http_proxy="http://hexin:hx300033@10.217.180.65:30100"
+
+THSCC_TRAIN_CREATOR=wiki
+JOB_NAME=wiki_pag
+
+
+ENGINE=${1:-${ENGINE:-vllm}}
+export VLLM_RPC_TIMEOUT=${VLLM_RPC_TIMEOUT:-3600}
+export NCCL_TIMEOUT=${NCCL_TIMEOUT:-7200}
+export FLASHINFER_WORKSPACE_BASE=${FLASHINFER_WORKSPACE_BASE:-/tmp}
+
+DATA_DIR=${PAG_DATA_DIR:-"${PROJECT_DIR}/data/multihop_mix_pag"}
+train_path=${train_path:-"${DATA_DIR}/train_mix.parquet"}
+test_path=${test_path:-"${DATA_DIR}/val_mix.parquet"}
+
+MODEL_PATH=${MODEL_PATH:-/mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/stock_agent_loop/data/Qwen3.5-9B}
+JOB_NAME=${JOB_NAME:-wiki_pag_mlp}
+SWANLAB_PROJECT=${SWANLAB_PROJECT:-wiki_pag}
+SWANLAB_EXP_NAME=${SWANLAB_EXP_NAME:-$JOB_NAME}
+
+max_prompt_length=${max_prompt_length:-2400}
+max_response_length=${max_response_length:-12000}
+max_token_len=$((max_prompt_length + max_response_length))
+
+TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-64}
+PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-32}
+ROLLOUT_N=${ROLLOUT_N:-8}
+PAG_MAX_ATTEMPTS=${PAG_MAX_ATTEMPTS:-5}
+PAG_VERIFIER_TOOLS=${PAG_VERIFIER_TOOLS:-False}
+PAG_ANSWER_REWARD_WEIGHT=${PAG_ANSWER_REWARD_WEIGHT:-1.0}
+PAG_VERIFIER_REWARD_WEIGHT=${PAG_VERIFIER_REWARD_WEIGHT:-1.0}
+POLICY_LOSS_MODE=${POLICY_LOSS_MODE:-vanilla}
+ADV_ESTIMATOR=${ADV_ESTIMATOR:-gigpo}
+GIGPO_OMEGA=${GIGPO_OMEGA:-1.0}
+
+python3 -m verl.trainer.main_ppo --config-path=config \
+    --config-name='ppo_megatron_trainer.yaml' \
+    algorithm.adv_estimator=grpo \
+    algorithm.norm_adv_by_std_in_grpo=False \
+    data.dataloader_num_workers=0 \
+    data.seed=42 \
+    data.train_files="$train_path" \
+    data.val_files="$test_path" \
+    +data.multi_val_files.wiki2="${DATA_DIR}/test_2wiki.parquet" \
+    +data.multi_val_files.bamboogle="${DATA_DIR}/test_bamboogle.parquet" \
+    +data.multi_val_files.hotpotqa="${DATA_DIR}/test_hotpotqa.parquet" \
+    +data.multi_val_files.musique="${DATA_DIR}/test_musique.parquet" \
+    data.train_batch_size=$TRAIN_BATCH_SIZE \
+    data.max_prompt_length=${max_prompt_length} \
+    data.max_response_length=${max_response_length} \
+    data.filter_overlong_prompts=True \
+    data.truncation='left' \
+    actor_rollout_ref.model.path="$MODEL_PATH" \
+    actor_rollout_ref.actor.optim.lr=1e-6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=$PPO_MINI_BATCH_SIZE \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.actor.entropy_coeff=0 \
+    actor_rollout_ref.actor.use_kl_loss=True \
+    actor_rollout_ref.actor.kl_loss_coef=0.001 \
+    actor_rollout_ref.actor.policy_loss.loss_mode=$POLICY_LOSS_MODE \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=$max_token_len \
+    actor_rollout_ref.ref.log_prob_max_token_len_per_gpu=$max_token_len \
+    actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=$max_token_len \
+    actor_rollout_ref.rollout.name=$ENGINE \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.n=$ROLLOUT_N \
+    actor_rollout_ref.actor.megatron.tensor_model_parallel_size=4 \
+    actor_rollout_ref.actor.megatron.pipeline_model_parallel_size=1 \
+    actor_rollout_ref.actor.megatron.context_parallel_size=1 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
+    actor_rollout_ref.actor.megatron.use_mbridge=True \
+    actor_rollout_ref.actor.megatron.param_offload=True \
+    actor_rollout_ref.actor.megatron.optimizer_offload=True \
+    actor_rollout_ref.actor.megatron.grad_offload=True \
+    actor_rollout_ref.ref.megatron.param_offload=True \
+    actor_rollout_ref.actor.megatron.dist_ckpt_optim_fully_reshardable=False \
+    trainer.use_legacy_worker_impl=disable \
+    +actor_rollout_ref.rollout.multi_turn.use_seeupo=True \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_offload_fraction=1 \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.overlap_cpu_optimizer_d2h_h2d=True \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.use_precision_aware_optimizer=True \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_cpu_offload=True \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_method=uniform \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_granularity=full \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_num_layers=1 \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.gradient_accumulation_fusion=True \
+    algorithm.use_kl_in_reward=False \
+    trainer.critic_warmup=0 \
+    trainer.logger='["console","wandb"]' \
+    trainer.project_name=$SWANLAB_PROJECT \
+    trainer.experiment_name=$SWANLAB_EXP_NAME \
+    trainer.n_gpus_per_node=8 \
+    +trainer.val_data_dir="${PROJECT_DIR}/val_log/${JOB_NAME}" \
+    trainer.nnodes=1 \
+    trainer.save_freq=5 \
+    trainer.test_freq=5 \
+    trainer.total_epochs=15 \
+    trainer.default_local_dir="${PROJECT_DIR}/checkpoints/${JOB_NAME}" \
+    actor_rollout_ref.rollout.multi_turn.format=qwen3_coder \
+    actor_rollout_ref.rollout.multi_turn.enable=True \
+    +actor_rollout_ref.rollout.agent.agent_loop_manager_class=verl.experimental.agent_loop.hotpot_pag_agent_loop.HotpotPAGAgentLoopManager \
+    actor_rollout_ref.rollout.agent.default_agent_loop=hotpot_qa_pag_agent \
+    actor_rollout_ref.rollout.multi_turn.tool_config_path="${PROJECT_DIR}/examples/sglang_multiturn/config/tool_config/hot_pag_tool_config.yaml" \
+    actor_rollout_ref.rollout.multi_turn.max_tool_response_length=2048 \
+    +actor_rollout_ref.rollout.multi_turn.pag.max_attempts=$PAG_MAX_ATTEMPTS \
+    +actor_rollout_ref.rollout.multi_turn.pag.verifier_tools=$PAG_VERIFIER_TOOLS \
+    +actor_rollout_ref.rollout.multi_turn.pag.answer_reward_weight=$PAG_ANSWER_REWARD_WEIGHT \
+    +actor_rollout_ref.rollout.multi_turn.pag.verifier_reward_weight=$PAG_VERIFIER_REWARD_WEIGHT \
+    +actor_rollout_ref.rollout.engine_kwargs.vllm.gdn_prefill_backend=triton

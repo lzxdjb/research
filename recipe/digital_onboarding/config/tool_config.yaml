@@ -1,0 +1,777 @@
+tools:
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: &native_config
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: send_verification_code
+        description: Send a verification code after the user provides a real phone number or email.
+        parameters:
+          type: object
+          properties:
+            contact:
+              type: string
+              description: Mobile number or email address provided by the user.
+            contact_type:
+              type: string
+              description: MOBILE or EMAIL.
+              enum: [MOBILE, EMAIL]
+            area_code:
+              type: string
+              description: Numeric country code for mobile verification.
+          required: [contact, contact_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: login_and_get_token
+        description: Log in with the verification code and return account-opening progress.
+        parameters:
+          type: object
+          properties:
+            contact:
+              type: string
+              description: Phone number or email used for login.
+            verification_code:
+              type: string
+              description: Verification code supplied by the user.
+            contact_type:
+              type: string
+              description: MOBILE or EMAIL.
+              enum: [MOBILE, EMAIL]
+            area_code:
+              type: string
+              description: Numeric country code for mobile login.
+          required: [contact, verification_code, contact_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: query_progress
+        description: Query current account-opening progress, missing fields, and collected fields.
+        parameters:
+          type: object
+          properties: {}
+          required: []
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: collect_information
+        description: Submit one or more account-opening fields after the user has provided them.
+        parameters:
+          type: object
+          properties:
+            data:
+              type: object
+              description: JSON object keyed by exact field names such as account_type, home_address, or drivers_license.
+          required: [data]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_application
+        description: Submit the application only after all required fields are complete and the user confirms.
+        parameters:
+          type: object
+          properties: {}
+          required: []
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: upload_file
+        description: Backend/frontend-only helper for an actual customer image upload. The service model should not call this directly; ask the user to upload an image and wait for CAPTURE_RESULT.
+        parameters:
+          type: object
+          properties:
+            file_data:
+              type: string
+              description: Base64 encoded file data.
+            filename:
+              type: string
+              description: Original filename.
+            is_need_min:
+              type: boolean
+              description: Whether a thumbnail/minified file is needed.
+            doc_type:
+              type: string
+              description: drivers_license_front, drivers_license_back, passport, visa, permanent_resident_card, id_card, bank_statement, utility_bill, credit_card_statement, or government_issued_id.
+            file_type:
+              type: string
+              description: Production upload classification such as drivers_licence_front, passport, id_card, visa, utility_bill, credit_card_statement, or bank_statement.
+          required: [file_data, filename]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: capture_document
+        description: Ask the frontend/camera to capture one document image. After CAPTURE_RESULT, call extract_document_info, then stop tool calling and show the readable fields to the user for confirmation/correction before submit_documents.
+        parameters:
+          type: object
+          properties:
+            doc_type:
+              type: string
+              description: drivers_license_front, drivers_license_back, passport, visa, permanent_resident_card, id_card, bank_statement, utility_bill, credit_card_statement, or government_issued_id.
+            purpose:
+              type: string
+              description: upload is the supported document-capture path.
+              enum: [upload]
+          required: [doc_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: extract_document_info
+        description: Mark the uploaded document image as ready for model-side visual extraction. This tool does not perform OCR or return extracted identity fields. After it succeeds, the next action must be a normal assistant message, not another tool call; inspect the image in the current model context, show the visible fields to the user, and ask for confirmation/correction before submit_documents.
+        parameters:
+          type: object
+          properties:
+            document_type:
+              type: string
+              description: ID_CARD, PASSPORT, DRIVERS_LICENSE, BANK_STATEMENT, or OTHER.
+              enum: [ID_CARD, PASSPORT, DRIVERS_LICENSE, BANK_STATEMENT, OTHER]
+            document_image:
+              type: string
+              description: Optional File URL from CAPTURE_RESULT. The actual uploaded image is already provided in the model context.
+            extracted_fields:
+              type: object
+              description: Ignored. Do not pass extracted fields into this tool; extract them yourself from the image after the tool succeeds.
+          required: [document_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: get_user_info
+        description: Return whether mobile/email are bound for the user.
+        parameters:
+          type: object
+          properties: {}
+          required: []
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: update_email
+        description: Bind or update email with a verification code.
+        parameters:
+          type: object
+          properties:
+            email:
+              type: string
+              description: Email address.
+            auth_code:
+              type: string
+              description: Verification code sent to email.
+          required: [email, auth_code]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: update_mobile
+        description: Bind or update mobile with a verification code.
+        parameters:
+          type: object
+          properties:
+            phone:
+              type: string
+              description: Mobile number.
+            area_code:
+              type: string
+              description: Numeric country code.
+            auth_code:
+              type: string
+              description: Verification code sent to phone.
+          required: [phone, area_code, auth_code]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_options
+        description: Render clickable single-choice or multi-choice options before verbally asking a fixed-choice question.
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+              description: Prompt shown above the options.
+            options:
+              type: array
+              description: Choice labels.
+            type:
+              type: string
+              description: single or multi.
+              enum: [single, multi]
+            layout:
+              type: string
+              description: buttons or checklist.
+              enum: [buttons, checklist]
+          required: [question, options, type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_date_input
+        description: Render a date, time, or datetime picker before asking for a date/time.
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+              description: Prompt shown above the picker.
+            format:
+              type: string
+              description: date, time, or datetime.
+              enum: [date, time, datetime]
+          required: [question, format]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_phone_input
+        description: Render a phone-number input widget before asking for phone number.
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+              description: Prompt shown above the phone input.
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_email_input
+        description: Render an email input widget before asking for email.
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+              description: Prompt shown above the email input.
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_drivers_license_review
+        description: Deprecated no-display compatibility hook. Do not call; show extracted driver's-license fields in the normal assistant message instead.
+        parameters:
+          type: object
+          properties:
+            question:
+              type: string
+              description: Review prompt.
+            fields:
+              type: object
+              description: Extracted license fields.
+          required: [question, fields]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_disclosure
+        description: Render all disclosure questions in one widget.
+        parameters:
+          type: object
+          properties:
+            questions:
+              type: array
+              description: Disclosure question objects.
+          required: [questions]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: classify_document_type
+        description: Record the service model's classification of an uploaded document before extraction or document-specific review.
+        parameters:
+          type: object
+          properties:
+            file_type:
+              type: string
+              enum: [drivers_licence_front, drivers_licence_back, id_card, passport, affiliated_approval, permanent_resident_card, visa, utility_bill, credit_card_statement, bank_statement]
+          required: [file_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_account_type
+        description: Submit account type. New-user flows should default to CASH unless the user explicitly asks for margin.
+        parameters:
+          type: object
+          properties:
+            account_type:
+              type: string
+              enum: [CASH, MARGIN]
+          required: [account_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_personal_identity
+        description: Submit name, birth date, gender, marital status, dependents, and either SSN for DOMESTIC or tax_id/tax_id_country for FOREIGNER.
+        parameters:
+          type: object
+          properties:
+            given_name: {type: string}
+            middle_name: {type: string}
+            family_name: {type: string}
+            date_of_birth: {type: string}
+            gender:
+              type: string
+              enum: [MALE, FEMALE, OTHER]
+            marital_status:
+              type: string
+              enum: [MARRIED, SINGLE, DIVORCED, WIDOWED]
+            num_dependents: {type: integer}
+            social_security_number: {type: string}
+            tax_id: {type: string}
+            tax_id_country: {type: string}
+          required: [given_name, family_name, date_of_birth, gender, marital_status, num_dependents]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_residency_status
+        description: Submit citizenship and birth country. DOMESTIC non-US citizens also need permanent_resident or visa information; FOREIGNER uses permanent_resident=false.
+        parameters:
+          type: object
+          properties:
+            citizenship_country: {type: string}
+            birth_country: {type: string}
+            permanent_resident: {type: boolean}
+            visa_type: {type: string}
+            visa_expiration_date: {type: string}
+          required: [citizenship_country, birth_country]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_home_address
+        description: Submit the user's residential address using US mode for DOMESTIC and INTERNATIONAL mode for FOREIGNER.
+        parameters:
+          type: object
+          properties:
+            address_branch:
+              type: string
+              enum: [US, INTERNATIONAL]
+            home_address:
+              type: object
+              properties:
+                country: {type: string}
+                state: {type: string}
+                city: {type: string}
+                postal_code: {type: string}
+                street_address1: {type: string}
+                street_address2: {type: string}
+              required: [country, state, city, postal_code, street_address1]
+          required: [address_branch, home_address]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_employment
+        description: Submit employment status and conditional employment details.
+        parameters:
+          type: object
+          properties:
+            employment_status:
+              type: string
+              enum: [EMPLOYED, SELF_EMPLOYED, UNEMPLOYED, RETIRED, STUDENT]
+            employer: {type: string}
+            position_employed: {type: string}
+            years_employed: {type: integer}
+            industry: {type: string}
+          required: [employment_status]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_financial_profile
+        description: Submit funding source plus annual income, liquid net worth, and total net worth min/max pairs.
+        parameters:
+          type: object
+          properties:
+            funding_source:
+              type: string
+              enum: [Savings, Inheritance, Pension, Rental Income, Social Security, Other]
+            other_source: {type: string}
+            annual_income_usd_min: {type: integer}
+            annual_income_usd_max: {type: integer}
+            liquid_net_worth_usd_min: {type: integer}
+            liquid_net_worth_usd_max: {type: integer}
+            total_net_worth_usd_min: {type: integer}
+            total_net_worth_usd_max: {type: integer}
+          required: [funding_source, annual_income_usd_min, annual_income_usd_max, liquid_net_worth_usd_min, liquid_net_worth_usd_max, total_net_worth_usd_min, total_net_worth_usd_max]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_investment_profile
+        description: Submit the FINRA suitability profile collected by the combined investment profile widget.
+        parameters:
+          type: object
+          properties:
+            investment_experience:
+              type: string
+              enum: [EXTENSIVE, GOOD, LIMITED, NONE]
+            investment_objective:
+              type: string
+              enum: [GROWTH, INCOME, CAPITAL_PRESERVATION, SPECULATION]
+            time_horizon:
+              type: string
+              enum: [SHORT, AVERAGE, LONGEST]
+            risk_tolerance:
+              type: string
+              enum: [HIGH, MEDIUM, LOW]
+            liquidity_needs:
+              type: string
+              enum: [VERY_IMPORTANT, SOMEWHAT_IMPORTANT, NOT_IMPORTANT]
+          required: [investment_experience, investment_objective, time_horizon, risk_tolerance, liquidity_needs]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_disclosures
+        description: Submit all regulatory disclosure answers together.
+        parameters:
+          type: object
+          properties:
+            is_control_person: {type: boolean}
+            company_symbols: {type: string}
+            is_affiliated_exchangeorfinra: {type: boolean}
+            firm_name: {type: string}
+            is_politically_exposed: {type: boolean}
+            immediate_family: {type: string}
+            political_organization: {type: string}
+            is_trade_authorization: {type: boolean}
+            agent_name: {type: string}
+            is_identify: {type: boolean}
+          required: [is_control_person, is_affiliated_exchangeorfinra, is_politically_exposed, is_trade_authorization, is_identify]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_agreements
+        description: Submit agreement acceptance after the user accepts through the agreement UI.
+        parameters:
+          type: object
+          properties:
+            agreements_accepted: {type: boolean}
+          required: [agreements_accepted]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: submit_documents
+        description: Submit uploaded document metadata only after extract_document_info has succeeded and the user has confirmed or corrected the visible extracted fields in the immediately preceding document-review turn. Do not call this directly after capture_document or extract_document_info.
+        parameters:
+          type: object
+          properties:
+            documents:
+              type: array
+              items:
+                type: object
+                properties:
+                  file_type:
+                    type: string
+                    enum: [drivers_licence_front, drivers_licence_back, passport, permanent_resident_card, visa, id_card, utility_bill, credit_card_statement, bank_statement]
+                  filename: {type: string}
+                  file_id: {type: string}
+                  min_file_id: {type: string}
+                  passport_number: {type: string}
+                  expiration_date: {type: string}
+                  issue_date: {type: string}
+                  issuing_country: {type: string}
+                  visa_type: {type: string}
+                  id_number: {type: string}
+                  card_number: {type: string}
+                required: [file_type]
+          required: [documents]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_country_select
+        description: Render a searchable ISO alpha-3 country picker.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            field_key: {type: string}
+            default_country: {type: string}
+          required: [question, field_key]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_address_input
+        description: Render a residential address widget in US or INTERNATIONAL mode.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            mode:
+              type: string
+              enum: [US, INTERNATIONAL]
+            prefill: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_us_address_input
+        description: Legacy alias for present_address_input with mode US.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            prefill: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_ssn_input
+        description: Render a masked Social Security Number input widget. Do not ask the user to speak SSN verbally.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_tax_id_input
+        description: Render a masked foreign tax identifier widget. The response supplies tax_id and tax_id_country; this is the W-8BEN-adjacent tax metadata currently supported by the API.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            default_country: {type: string}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_personal_info_input
+        description: Render a personal information form for name, birth date, and gender.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            prefill: {type: object}
+            address_prefill: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_employment_input
+        description: Render an employment detail form after employment status is known.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            prefill: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_agreements
+        description: Render the agreements widget for the selected account type.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            account_type:
+              type: string
+              enum: [CASH, MARGIN]
+          required: [question, account_type]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_progress_indicator
+        description: Render or refresh the section progress indicator after query_progress.
+        parameters:
+          type: object
+          properties:
+            percentage: {type: integer}
+            sections: {type: array}
+            status: {type: string}
+            branch: {type: string}
+          required: [percentage, sections, status]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_passport_input
+        description: Render a passport confirmation form.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            fields: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_visa_input
+        description: Render a visa details and upload form.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_green_card_input
+        description: Render a Green Card confirmation form.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            fields: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_id_card_input
+        description: Render a Chinese ID card confirmation form for FOREIGNER-CHN flows.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            fields: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_address_proof_upload
+        description: Render an address-proof upload/review form for foreigner flows.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            fields: {type: object}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_financial_range_input
+        description: Render one combined financial range widget for annual income, liquid net worth, and total net worth.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+            currency: {type: string}
+            buckets: {type: array}
+          required: [question]
+
+  - class_name: "recipe.digital_onboarding.tools.OnboardingTool"
+    config: *native_config
+    tool_schema:
+      type: function
+      function:
+        name: present_investment_profile_input
+        description: Render one combined investment suitability widget for all five FINRA fields.
+        parameters:
+          type: object
+          properties:
+            question: {type: string}
+          required: [question]

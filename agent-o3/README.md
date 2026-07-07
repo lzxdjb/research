@@ -1,0 +1,5 @@
+# 代码框架
+main_online_url.py main_online_url_background.py main_online_background_text.py为主函数，区别在于main_online_url_background.py是普通+深度的流程，main_online_background_text.py 处理文本prompt
+api.py 使用公司购买的api
+local_api.py 服务器部署模型来作为服务，虚拟机本地调用该服务
+prompt.py 里面包含agent规划prompt，工具说明prompt，问题生成prompt

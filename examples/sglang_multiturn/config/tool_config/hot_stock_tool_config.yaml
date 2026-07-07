@@ -1,0 +1,68 @@
+tools:
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 1 — Search
+  # The model uses this to retrieve Wikipedia passages for multi-hop QA.
+  # ──────────────────────────────────────────────────────────────────────
+  - class_name: "verl.tools.hotpot_tool.SearchTool"
+    config:
+      type: native
+
+      # backend options:
+      #   "wikipedia_api"  — live Wikipedia (needs internet, slower)
+      #   "bm25_local"     — offline BM25 index (recommended for RL training)
+      backend: "wikipedia_api"
+
+      # Path to the pre-built JSONL corpus used by the BM25 backend.
+      # Each line: {"title": "...", "text": "..."}
+      # For HotpotQA, build this from the 'context' field of the training set.
+      corpus_path: "/data/hotpotqa/corpus.jsonl"
+
+      # Number of passages returned per query
+      top_k: 3
+
+      # Maximum characters kept per returned passage (truncated beyond this)
+      max_chars: 1000
+
+    tool_schema:
+      type: "function"
+      function:
+        name: "Search"
+        description: >
+          Retrieve passages from a knowledge base relevant to the query.
+          Use this tool to look up factual information needed to answer the question,
+          such as biographical details, event descriptions, or numerical facts.
+          Call this tool instead of guessing when you are uncertain about a fact.
+          Example queries: 'Jonathan Stark tennis Grand Slam titles',
+          'Henri Leconte career highlights'.
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: >
+                A natural-language search query focused on a single sub-question.
+                Use keywords or short phrases. Do not combine multiple unrelated
+                sub-questions in one query.
+                Example: 'Henri Leconte Grand Slam titles'
+          required: ["query"]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 2 — calc_hotpot_reward  (internal scoring tool, hidden from model)
+  # Computes the final answer reward; NOT listed in tool_schemas for the model.
+  # ──────────────────────────────────────────────────────────────────────
+  # - class_name: "verl.tools.hotpot_reward_tool.HotpotRewardTool"
+  #   config:
+  #     type: native
+  #   tool_schema:
+  #     type: "function"
+  #     function:
+  #       name: "calc_hotpot_reward"
+  #       description: "Internal reward calculation tool — not exposed to the model."
+  #       parameters:
+  #         type: "object"
+  #         properties:
+  #           answer:
+  #             type: "string"
+  #             description: "The model's final answer string extracted from the FINISHED block."
+  #         required: ["answer"]

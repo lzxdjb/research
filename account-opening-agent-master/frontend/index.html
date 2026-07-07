@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Light Horse Securities – Onboarding</title>
+    <script>
+      // Agent flow is gated behind ?agentMode=true. The server already routes
+      // un-gated requests to the landing page, but this client-side guard
+      // catches stale bookmarks / direct file:// loads. We drop the query
+      // and reload the same path so the redirect survives any URL prefix
+      // (e.g. served at /onboarding/ via a proxy).
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get("agentMode") !== "true") {
+          window.location.replace(window.location.pathname);
+        }
+      })();
+    </script>
+    <!-- Shared font stack with landing.html — Inter for body, Bebas Neue
+         for display headings, JetBrains Mono for tabular/numeric blocks. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css" />
+  </head>
+  <body>
+    <!-- Top Navigation Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <div class="brand-logo">
+          <img src="static/assets/LightHorse.png" alt="Light Horse" style="width:28px;height:28px;border-radius:6px;" />
+        </div>
+        <span class="brand-name">Light Horse Securities</span>
+        <span class="brand-divider">|</span>
+        <span class="brand-subtitle">Fast Onboarding</span>
+      </div>
+      <div class="header-right">
+        <div id="status" class="status disconnected">Disconnected</div>
+        <button
+          id="disconnectBtn"
+          class="header-stop-btn hidden"
+          title="End Session"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+          </svg>
+          End Session
+        </button>
+        <button id="exitBtn" class="header-exit-btn hidden" title="Back to app" aria-label="Back to app">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Branch Selection Screen — first screen of the agent flow.
+           Agent/Classic mode selection was removed; visitors arriving via
+           ?agentMode=true have already opted into the agent flow on the landing. -->
+      <div class="notice-section" id="branch-section">
+        <div class="notice-two-col">
+          <h2 class="notice-heading"><span class="heading-white">Pick the</span> <span class="heading-gold">right path</span></h2>
+          <!-- Left: Domestic -->
+          <div class="notice-card branch-card" id="branch-card-domestic">
+            <h2 class="notice-title">Domestic</h2>
+            <p class="notice-text">For U.S. residents. Choose this only if <strong>both</strong> are true:</p>
+            <ul class="notice-list">
+              <li>You currently live in the United States with a valid U.S. residential address</li>
+              <li>You have a valid U.S. <strong>Social Security Number (SSN)</strong></li>
+            </ul>
+            <div class="notice-buttons">
+              <button id="branchDomesticBtn" class="connect-btn">Start Domestic Onboarding</button>
+            </div>
+          </div>
+
+          <!-- Right: Foreigner -->
+          <div class="notice-card branch-card" id="branch-card-foreigner">
+            <h2 class="notice-title">Foreigner</h2>
+            <p class="notice-text">For non-U.S. residents. Choose this if <strong>either</strong> is true:</p>
+            <ul class="notice-list">
+              <li>You do not currently live in the United States, <strong>or</strong></li>
+              <li>You do not have a U.S. <strong>Social Security Number (SSN)</strong> — you will open with your <strong>passport</strong> and local <strong>Tax ID</strong> instead</li>
+            </ul>
+            <div class="notice-buttons">
+              <button id="branchForeignerBtn" class="secondary-btn">Start Foreigner Onboarding</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auth / Connect Screen -->
+      <div class="auth-section hidden" id="auth-section">
+        <div class="auth-card">
+          <div class="auth-logo">
+            <img src="static/assets/LightHorse.png" alt="Light Horse" style="width:72px;height:72px;border-radius:14px;" />
+          </div>
+          <h2 class="auth-title">Light Horse Securities</h2>
+          <p class="auth-subtitle">AI-powered account onboarding</p>
+          <div class="auth-features">
+            <div class="feature-item">
+              <span class="feature-icon">🎙️</span>
+              <span><strong>Native Audio</strong> – Low latency voice interaction</span>
+            </div>
+            <div class="feature-item">
+              <span class="feature-icon">🌐</span>
+              <span><strong>Multilingual</strong> – Speak in different languages</span>
+            </div>
+          </div>
+          <button id="connectBtn" class="connect-btn">Start Onboarding</button>
+        </div>
+      </div>
+
+      <!-- Session End Screen -->
+      <div class="session-end-section hidden" id="session-end-section">
+        <div class="auth-card">
+          <div class="session-end-icon">✓</div>
+          <h2 class="auth-title">Session Ended</h2>
+          <p class="auth-subtitle">
+            Thank you for using Light Horse Securities
+          </p>
+          <button id="restartBtn" class="connect-btn">Start New Session</button>
+        </div>
+      </div>
+
+      <!-- Main App Layout -->
+      <div class="app-section hidden" id="app-section">
+        <div class="app-grid">
+          <!-- Left Panel -->
+          <div class="left-panel">
+            <!-- Customer Avatar -->
+            <div class="customer-avatar-wrap">
+              <div id="avatar-container" class="customer-avatar-img avatar-container"></div>
+              <div class="customer-avatar-info">
+                <div class="customer-name">Claire</div>
+                <div class="customer-title">Your account opening specialist.</div>
+              </div>
+              <!-- Mobile-only mic/camera controls (mirrors of #micBtn/#cameraBtn) -->
+              <div class="avatar-controls">
+                <button id="micBtnMobile" class="avatar-ctrl-btn" title="Microphone" aria-label="Toggle microphone">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                </button>
+                <button id="cameraBtnMobile" class="avatar-ctrl-btn" title="Camera" aria-label="Toggle camera">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 7l-7 5 7 5V7z" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <!-- Video Container -->
+            <div class="video-container">
+              <div id="video-placeholder" class="video-placeholder">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#555"
+                  stroke-width="1.5"
+                >
+                  <path d="M23 7l-7 5 7 5V7z" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+                <span>Start camera to send video</span>
+              </div>
+              <video id="video-preview" autoplay playsinline muted></video>
+              <canvas id="video-canvas" style="display: none"></canvas>
+              <div class="video-overlay">
+                <div class="agent-status-badge">
+                  <span class="green-dot"></span>
+                  AGENT CONNECTED
+                </div>
+                <div class="video-btn-group">
+                  <button id="micBtn" class="video-icon-btn" title="Microphone">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"
+                      />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                  </button>
+                  <button id="cameraBtn" class="video-icon-btn" title="Camera">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M23 7l-7 5 7 5V7z" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Progress Panel — below video -->
+            <div class="progress-panel" id="progress-panel">
+              <div class="progress-title">Application Progress</div>
+              <div class="progress-steps" id="progress-steps">
+                <!-- updated by updateProgressIndicator -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Panel (Chat) -->
+          <div class="right-panel">
+            <div class="chat-panel">
+              <div class="chat-log" id="chat-log"></div>
+            </div>
+            <div class="input-area">
+              <button class="input-icon-btn attach-btn" title="Attach file">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                  />
+                </svg>
+              </button>
+              <input
+                type="text"
+                id="textInput"
+                placeholder="Type a message or hold to speak..."
+              />
+              <button class="input-icon-btn mic-input-btn" title="Voice input">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"
+                  />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                </svg>
+              </button>
+              <button id="sendBtn" class="send-btn" title="Send">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+              <button id="stopBtn" class="stop-btn hidden" title="Stop">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <input
+      type="file"
+      id="fileInput"
+      accept="image/*,.pdf,.doc,.docx"
+      style="display: none"
+    />
+    <script src="https://cdn.ainvest.com/frontResources/public/js/common-v3.js"></script>
+    <script src="static/bridge.js"></script>
+    <script src="static/liveavatar-sdk.js"></script>
+    <script src="static/weblog.js"></script>
+    <script>window.WEBLOG_PAGE_ID='lhsbdw_cot_accountOpenningAgent';</script>
+    <script src="static/tracking.js"></script>
+    <script src="static/media-handler.js"></script>
+    <script src="static/gemini-client.js"></script>
+    <script src="static/widget-date.js"></script>
+    <script src="static/widget-options.js"></script>
+    <script src="static/widget-disclosure.js"></script>
+    <script src="static/widget-document-upload.js"></script>
+    <script src="static/widget-drivers-license.js"></script>
+    <script src="static/widget-phone.js"></script>
+    <script src="static/widget-email.js"></script>
+    <script src="static/widget-address.js"></script>
+    <script src="static/widget-country-select.js"></script>
+    <script src="static/widget-ssn.js"></script>
+    <script src="static/widget-tax-id.js"></script>
+    <script src="static/widget-passport.js"></script>
+    <script src="static/widget-visa.js"></script>
+    <script src="static/widget-green-card.js"></script>
+    <script src="static/widget-id-card.js"></script>
+    <script src="static/widget-address-proof-upload.js"></script>
+    <script src="static/widget-financial-range.js"></script>
+    <script src="static/widget-investment-profile.js"></script>
+    <script src="static/widget-agreements.js"></script>
+    <script src="static/widget-employment.js"></script>
+    <script src="static/widget-personal-info.js"></script>
+    <script src="static/main.js"></script>
+  </body>
+</html>

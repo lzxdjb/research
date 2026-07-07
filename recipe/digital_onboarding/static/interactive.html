@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Digital Onboarding Live</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8f5;
+        --panel: #ffffff;
+        --panel-2: #eef3ef;
+        --ink: #17201b;
+        --muted: #64716a;
+        --line: #d8ded8;
+        --accent: #2f6f58;
+        --accent-2: #8f4e34;
+        --danger: #a13e3e;
+        --shadow: 0 18px 40px rgba(25, 32, 28, 0.08);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--ink);
+        padding: 0 12px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: #b8c5bd;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+
+      button.danger {
+        border-color: #dab9b9;
+        color: var(--danger);
+      }
+
+      button.icon {
+        width: 42px;
+        padding: 0;
+        font-weight: 700;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: 58px minmax(0, 1fr);
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .brand {
+        min-width: 220px;
+        font-weight: 760;
+        letter-spacing: 0;
+      }
+
+      .status {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(230px, 300px) minmax(420px, 1fr) minmax(230px, 340px);
+        min-height: 0;
+      }
+
+      aside {
+        min-width: 0;
+        border-right: 1px solid var(--line);
+        padding: 16px;
+        overflow: auto;
+      }
+
+      aside.right {
+        border-right: 0;
+        border-left: 1px solid var(--line);
+      }
+
+      main {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        line-height: 1.25;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .section {
+        margin-bottom: 18px;
+      }
+
+      .kv {
+        display: grid;
+        grid-template-columns: minmax(86px, 0.45fr) minmax(0, 1fr);
+        gap: 8px 10px;
+        align-items: start;
+        font-size: 12px;
+      }
+
+      .kv .key {
+        color: var(--muted);
+      }
+
+      .kv .value {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .chips {
+        display: grid;
+        gap: 8px;
+      }
+
+      .chip {
+        min-height: 34px;
+        width: 100%;
+        text-align: left;
+        line-height: 1.25;
+        white-space: normal;
+      }
+
+      .chat {
+        min-height: 0;
+        overflow: auto;
+        padding: 22px min(4vw, 36px);
+      }
+
+      .message {
+        width: min(760px, 100%);
+        margin: 0 0 14px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .message.user {
+        margin-left: auto;
+      }
+
+      .role {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .bubble {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 12px 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        box-shadow: var(--shadow);
+      }
+
+      .message.user .bubble {
+        border-color: #c7d8cf;
+        background: #eef5f1;
+      }
+
+      .message.system .bubble {
+        border-color: #ead0c4;
+        background: #fff7f2;
+      }
+
+      .composer {
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.86);
+        padding: 12px min(4vw, 36px) 16px;
+      }
+
+      .widgets {
+        width: min(760px, 100%);
+        display: grid;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .widget {
+        border: 1px solid #cddbd2;
+        background: var(--panel-2);
+        border-radius: 8px;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .widget-title {
+        font-weight: 650;
+        line-height: 1.35;
+      }
+
+      .widget-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .widget input,
+      .widget textarea {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 10px;
+        min-width: min(100%, 260px);
+      }
+
+      .widget textarea {
+        padding: 10px 12px;
+        min-height: 72px;
+      }
+
+      .row {
+        width: min(760px, 100%);
+        display: grid;
+        grid-template-columns: 42px 42px minmax(0, 1fr) 92px;
+        gap: 8px;
+        align-items: end;
+      }
+
+      .chat.dragging {
+        outline: 2px dashed var(--accent);
+        outline-offset: -10px;
+        background: #f1f6f2;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 42px;
+        max-height: 128px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        line-height: 1.35;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      .tool-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .tool {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 10px;
+      }
+
+      .tool-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 2px 8px;
+        color: #fff;
+        background: var(--accent);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .pill.error {
+        background: var(--danger);
+      }
+
+      details {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      pre {
+        max-height: 220px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      @media (max-width: 1080px) {
+        .layout {
+          grid-template-columns: 260px minmax(0, 1fr);
+        }
+
+        aside.right {
+          display: none;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .shell {
+          grid-template-rows: auto minmax(0, 1fr);
+        }
+
+        header {
+          min-height: 58px;
+          flex-wrap: wrap;
+          padding: 10px 12px;
+        }
+
+        .brand {
+          min-width: 0;
+          flex: 1 1 220px;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        aside {
+          display: none;
+        }
+
+        .chat {
+          padding: 16px 12px;
+        }
+
+        .composer {
+          padding: 10px 12px 12px;
+        }
+
+        .row {
+          grid-template-columns: 42px 42px minmax(0, 1fr);
+        }
+
+        .row .primary {
+          grid-column: 1 / -1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="brand">Digital Onboarding Live</div>
+        <div id="status" class="status">Starting...</div>
+        <label class="toggle"><input id="speakToggle" type="checkbox" /> Speak replies</label>
+        <button id="resetBtn" class="danger">Reset</button>
+      </header>
+
+      <div class="layout">
+        <aside>
+          <div class="section">
+            <h2>Test Customer</h2>
+            <div id="profile" class="kv"></div>
+          </div>
+          <div class="section">
+            <h2>Quick Lines</h2>
+            <div id="quickLines" class="chips"></div>
+          </div>
+          <div class="section">
+            <h2>State</h2>
+            <div id="state" class="kv"></div>
+          </div>
+        </aside>
+
+        <main>
+          <div id="chat" class="chat"></div>
+          <div class="composer">
+            <div id="widgets" class="widgets"></div>
+            <div class="row">
+              <button id="micBtn" class="icon" title="Voice input">Mic</button>
+              <button id="uploadBtn" class="icon" title="Upload image">File</button>
+              <input id="fileInput" type="file" accept="image/*" hidden />
+              <textarea id="input" rows="1" placeholder="Type or press Mic"></textarea>
+              <button id="sendBtn" class="primary">Send</button>
+            </div>
+          </div>
+        </main>
+
+        <aside class="right">
+          <div class="section">
+            <h2>Tool Calls</h2>
+            <div id="tools" class="tool-list"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const els = {
+        status: document.getElementById("status"),
+        chat: document.getElementById("chat"),
+        input: document.getElementById("input"),
+        send: document.getElementById("sendBtn"),
+        mic: document.getElementById("micBtn"),
+        upload: document.getElementById("uploadBtn"),
+        fileInput: document.getElementById("fileInput"),
+        reset: document.getElementById("resetBtn"),
+        profile: document.getElementById("profile"),
+        state: document.getElementById("state"),
+        tools: document.getElementById("tools"),
+        widgets: document.getElementById("widgets"),
+        quickLines: document.getElementById("quickLines"),
+        speakToggle: document.getElementById("speakToggle"),
+      };
+
+      let sessionId = localStorage.getItem("digital_onboarding_session_id") || "";
+      let profile = {};
+      let busy = false;
+      let recognition = null;
+      let listening = false;
+      let expectedDocType = "drivers_license_front";
+
+      function setStatus(text) {
+        els.status.textContent = text;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function pretty(value) {
+        if (value === null || value === undefined || value === "") return "";
+        if (typeof value === "object") return JSON.stringify(value, null, 2);
+        return String(value);
+      }
+
+      function docTypeLabel(docType) {
+        const labels = {
+          drivers_license_front: "driver's license front",
+          drivers_license_back: "driver's license back",
+          passport: "passport",
+          visa: "visa page",
+          permanent_resident_card: "green card",
+          id_card: "ID card",
+          bank_statement: "address proof",
+          utility_bill: "address proof",
+          credit_card_statement: "address proof",
+        };
+        return labels[docType] || docType || "document";
+      }
+
+      function docTypeShort(docType) {
+        const labels = {
+          drivers_license_front: "DL-F",
+          drivers_license_back: "DL-B",
+          passport: "Pass",
+          visa: "Visa",
+          permanent_resident_card: "GC",
+          id_card: "ID",
+          bank_statement: "Addr",
+          utility_bill: "Addr",
+          credit_card_statement: "Addr",
+        };
+        return labels[docType] || "File";
+      }
+
+      function updateUploadButton() {
+        els.upload.textContent = docTypeShort(expectedDocType);
+        els.upload.title = `Upload ${docTypeLabel(expectedDocType)}`;
+      }
+
+      function renderKv(target, data) {
+        target.innerHTML = "";
+        Object.entries(data || {}).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === "") return;
+          const k = document.createElement("div");
+          k.className = "key";
+          k.textContent = key;
+          const v = document.createElement("div");
+          v.className = "value";
+          v.textContent = pretty(value);
+          target.append(k, v);
+        });
+      }
+
+      function appendMessage(role, content) {
+        const wrap = document.createElement("div");
+        wrap.className = `message ${role}`;
+        const label = document.createElement("div");
+        label.className = "role";
+        label.textContent = role === "user" ? "You" : role === "assistant" ? "Assistant" : "System";
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.textContent = content;
+        wrap.append(label, bubble);
+        els.chat.appendChild(wrap);
+        els.chat.scrollTop = els.chat.scrollHeight;
+      }
+
+      function speak(text) {
+        if (!els.speakToggle.checked || !("speechSynthesis" in window)) return;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "en-US";
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function renderQuickLines() {
+        const lines = [
+          "Hi, I want to open a brokerage account.",
+          `My mobile number is ${profile.mobile || ""}, country code ${profile.area_code || "1"}.`,
+          `My email is ${profile.email || ""}.`,
+          `The verification code is ${profile.verification_code || "123456"}.`,
+          `My name is ${profile.given_name || ""} ${profile.family_name || ""}, born on ${profile.date_of_birth || ""}.`,
+          "Yes, I confirm the information is correct. Please submit the application.",
+        ].filter((line) => !line.includes("undefined"));
+        els.quickLines.innerHTML = "";
+        lines.forEach((line) => {
+          const btn = document.createElement("button");
+          btn.className = "chip";
+          btn.textContent = line;
+          btn.addEventListener("click", () => sendMessage(line));
+          els.quickLines.appendChild(btn);
+        });
+      }
+
+      function renderTools(events) {
+        if (!events || !events.length) return;
+        events.forEach((event) => {
+          const result = event.result || {};
+          const status = result.status || "tool";
+          const tool = document.createElement("div");
+          tool.className = "tool";
+          tool.innerHTML = `
+            <div class="tool-head">
+              <span class="pill ${status === "error" ? "error" : ""}">${escapeHtml(status)}</span>
+              <span>${escapeHtml(event.tool || "")}</span>
+            </div>
+            <div class="small">${escapeHtml(result.message || "")}</div>
+            <details>
+              <summary>Details</summary>
+              <pre>${escapeHtml(JSON.stringify({ arguments: event.arguments, result }, null, 2))}</pre>
+            </details>
+          `;
+          els.tools.prepend(tool);
+        });
+      }
+
+      function renderWidgets(widgets) {
+        els.widgets.innerHTML = "";
+        (widgets || []).forEach((widget) => {
+          const box = document.createElement("div");
+          box.className = "widget";
+          if (!widget.hide_title) {
+            const title = document.createElement("div");
+            title.className = "widget-title";
+            title.textContent = widget.question || widget.tool || "Input";
+            box.appendChild(title);
+          }
+
+          if (widget.kind === "options") {
+            const grid = document.createElement("div");
+            grid.className = "widget-grid";
+            (widget.options || []).forEach((option) => {
+              const btn = document.createElement("button");
+              btn.textContent = option;
+              btn.addEventListener("click", () => sendMessage(String(option)));
+              grid.appendChild(btn);
+            });
+            box.appendChild(grid);
+          } else if (["phone", "email", "date"].includes(widget.kind)) {
+            const grid = document.createElement("div");
+            grid.className = "widget-grid";
+            const input = document.createElement("input");
+            input.type = widget.kind === "date" ? "date" : widget.kind === "email" ? "email" : "tel";
+            const btn = document.createElement("button");
+            btn.className = "primary";
+            btn.textContent = "Send";
+            btn.addEventListener("click", () => {
+              if (input.value.trim()) sendMessage(input.value.trim());
+            });
+              grid.append(input, btn);
+            box.appendChild(grid);
+          } else if (widget.kind === "disclosure") {
+            const btn = document.createElement("button");
+            btn.className = "primary";
+            btn.textContent = "Accept";
+            btn.addEventListener("click", () =>
+              sendMessage("No to control person, no to FINRA or exchange affiliation, no to politically exposed, no trade authorization, and I accept the agreements.")
+            );
+            box.appendChild(btn);
+          } else if (widget.kind === "review") {
+            const btn = document.createElement("button");
+            btn.className = "primary";
+            btn.textContent = "Confirm";
+            btn.addEventListener("click", () => sendMessage("Yes, the extracted information is correct."));
+            box.appendChild(btn);
+          } else if (widget.kind === "progress") {
+            const info = document.createElement("div");
+            info.className = "small";
+            info.textContent = `Status: ${widget.status || ""} ${widget.percentage ?? ""}`.trim();
+            box.appendChild(info);
+          } else if (widget.kind === "document") {
+            const grid = document.createElement("div");
+            grid.className = "widget-grid";
+            const uploadBtn = document.createElement("button");
+            uploadBtn.className = "primary";
+            uploadBtn.textContent = `Upload ${docTypeLabel(widget.doc_type)}`;
+            uploadBtn.addEventListener("click", () => {
+              expectedDocType = widget.doc_type || expectedDocType;
+              updateUploadButton();
+              els.fileInput.click();
+            });
+            const note = document.createElement("textarea");
+            note.rows = 2;
+            note.placeholder = "Optional note for the assistant";
+            const sendBtn = document.createElement("button");
+            sendBtn.textContent = "Send note";
+            sendBtn.addEventListener("click", () => {
+              if (note.value.trim()) sendMessage(note.value.trim());
+            });
+            grid.append(uploadBtn, note, sendBtn);
+            box.appendChild(grid);
+          } else if (widget.kind === "generic") {
+            const grid = document.createElement("div");
+            grid.className = "widget-grid";
+            const input = document.createElement("textarea");
+            input.rows = 2;
+            input.placeholder = "Enter your answer";
+            const btn = document.createElement("button");
+            btn.className = "primary";
+            btn.textContent = widget.tool === "present_agreements" ? "Accept" : "Send";
+            btn.addEventListener("click", () => {
+              const value = input.value.trim();
+              if (value) sendMessage(value);
+              else if (widget.tool === "present_agreements") sendMessage("Yes, I accept the agreements.");
+            });
+            grid.append(input, btn);
+            box.appendChild(grid);
+          }
+          els.widgets.appendChild(box);
+        });
+      }
+
+      function applyResponse(data) {
+        sessionId = data.session_id;
+        localStorage.setItem("digital_onboarding_session_id", sessionId);
+        profile = data.scenario?.test_profile || profile || {};
+        expectedDocType = data.state?.expected_doc_type || expectedDocType || "drivers_license_front";
+        updateUploadButton();
+        renderKv(els.profile, profile);
+        renderKv(els.state, data.state || {});
+        renderQuickLines();
+        renderTools(data.tool_events || []);
+        renderWidgets(data.widgets || []);
+        (data.messages || []).forEach((message) => {
+          appendMessage("assistant", message.content);
+          speak(message.content);
+        });
+        setStatus(`${data.tool_backend} | ${data.model}`);
+      }
+
+      function setBusy(nextBusy) {
+        busy = nextBusy;
+        els.send.disabled = nextBusy;
+        els.mic.disabled = nextBusy;
+        els.upload.disabled = nextBusy;
+      }
+
+      function fileToDataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function sendMessage(text) {
+        const message = (text || els.input.value).trim();
+        if (!message || busy) return;
+        setBusy(true);
+        els.input.value = "";
+        appendMessage("user", message);
+        setStatus("Thinking...");
+        try {
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId, message }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || res.statusText);
+          applyResponse(data);
+        } catch (error) {
+          appendMessage("system", error.message || String(error));
+          setStatus("Request failed");
+        } finally {
+          setBusy(false);
+          els.input.focus();
+        }
+      }
+
+      async function uploadImage(file) {
+        if (!file || busy) return;
+        if (!file.type.startsWith("image/")) {
+          appendMessage("system", "Only image files can be uploaded here.");
+          return;
+        }
+        setBusy(true);
+        appendMessage("user", `Uploaded image: ${file.name || "pasted-image.png"}`);
+        setStatus("Uploading image...");
+        try {
+          const fileData = await fileToDataUrl(file);
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: sessionId,
+              filename: file.name || "pasted-image.png",
+              file_data: fileData,
+              doc_type: expectedDocType,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || res.statusText);
+          applyResponse(data);
+        } catch (error) {
+          appendMessage("system", error.message || String(error));
+          setStatus("Upload failed");
+        } finally {
+          setBusy(false);
+          els.fileInput.value = "";
+          els.input.focus();
+        }
+      }
+
+      function firstImageFile(fileList) {
+        return Array.from(fileList || []).find((file) => file.type && file.type.startsWith("image/"));
+      }
+
+      async function resetSession() {
+        setStatus("Resetting...");
+        try {
+          sessionId = "";
+          localStorage.removeItem("digital_onboarding_session_id");
+          const res = await fetch("/api/reset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || res.statusText);
+          els.chat.innerHTML = "";
+          els.tools.innerHTML = "";
+          els.widgets.innerHTML = "";
+          applyResponse(data);
+          appendMessage("assistant", "Hello, this is Light Horse onboarding. How can I help you today?");
+        } catch (error) {
+          appendMessage("system", error.message || String(error));
+        }
+      }
+
+      function setupSpeech() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const localHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+        if (!window.isSecureContext && !localHost) {
+          setStatus("Microphone needs localhost or HTTPS");
+        }
+        if (!SpeechRecognition) {
+          els.mic.disabled = true;
+          els.mic.title = "Speech recognition is not available in this browser";
+          return;
+        }
+        recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = true;
+        recognition.continuous = false;
+        recognition.onstart = () => {
+          listening = true;
+          els.mic.textContent = "Stop";
+          setStatus("Listening...");
+        };
+        recognition.onresult = (event) => {
+          let finalText = "";
+          let interimText = "";
+          for (let i = event.resultIndex; i < event.results.length; i += 1) {
+            const text = event.results[i][0].transcript;
+            if (event.results[i].isFinal) finalText += text;
+            else interimText += text;
+          }
+          els.input.value = finalText || interimText;
+          if (finalText.trim()) sendMessage(finalText.trim());
+        };
+        recognition.onerror = (event) => {
+          setStatus(`Voice error: ${event.error}`);
+        };
+        recognition.onend = () => {
+          listening = false;
+          els.mic.textContent = "Mic";
+          if (!busy) setStatus("Ready");
+        };
+      }
+
+      els.send.addEventListener("click", () => sendMessage());
+      els.input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          sendMessage();
+        }
+      });
+      els.reset.addEventListener("click", resetSession);
+      els.mic.addEventListener("click", () => {
+        if (!recognition) return;
+        if (listening) recognition.stop();
+        else recognition.start();
+      });
+      els.upload.addEventListener("click", () => els.fileInput.click());
+      els.fileInput.addEventListener("change", () => uploadImage(firstImageFile(els.fileInput.files)));
+      document.addEventListener("paste", (event) => {
+        const file = firstImageFile(event.clipboardData?.files);
+        if (!file) return;
+        event.preventDefault();
+        uploadImage(file);
+      });
+      ["dragenter", "dragover"].forEach((name) => {
+        els.chat.addEventListener(name, (event) => {
+          event.preventDefault();
+          els.chat.classList.add("dragging");
+        });
+      });
+      ["dragleave", "drop"].forEach((name) => {
+        els.chat.addEventListener(name, () => els.chat.classList.remove("dragging"));
+      });
+      els.chat.addEventListener("drop", (event) => {
+        event.preventDefault();
+        uploadImage(firstImageFile(event.dataTransfer?.files));
+      });
+
+      async function boot() {
+        setupSpeech();
+        try {
+          const res = await fetch("/api/config");
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || res.statusText);
+          applyResponse(data);
+          appendMessage("assistant", "Hello, this is Light Horse onboarding. How can I help you today?");
+        } catch (error) {
+          appendMessage("system", error.message || String(error));
+          setStatus("Startup failed");
+        }
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

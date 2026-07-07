@@ -1,0 +1,33 @@
+# megatron actor config, inheriting from trainer/config/actor/actor.yaml
+defaults:
+  # megatron optimizer config
+  - ../optim@optim: megatron
+
+  # megatron engine config
+  - ../engine@megatron: megatron
+
+  - actor
+
+  # load the reference default config, then apply the fields in the current yaml
+  - _self_
+
+_target_: verl.workers.config.McoreActorConfig
+
+strategy: megatron
+
+load_weight: True
+
+# Compute sum(pi^2) per token from actor logits for estimators such as mse_gate and
+# optimal_token_baseline.
+calculate_sum_pi_squared: False
+sum_pi_squared_checkpointing: False
+
+# Compute a low-dimensional CountSketch of the categorical score vector e_y - pi
+# from Megatron logits. Used by sketch-based multi-domain advantage estimators.
+calculate_update_sketch: False
+
+# Dimension of the categorical score sketch returned per token.
+update_sketch_dim: 64
+
+# Deterministic seed for the CountSketch hash/sign functions.
+update_sketch_seed: 17

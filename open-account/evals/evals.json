@@ -1,0 +1,23 @@
+{
+  "skill_name": "open-account",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我想在你们这里开通一个交易账户，请问怎么操作？",
+      "expected_output": "引导用户完成注册账号流程，包括发送验证码、登录、获取交易token，然后填写开户信息",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我之前注册过但是还没完成开户，现在想继续填写开户信息",
+      "expected_output": "查询当前开户进度，根据进度状态（COLLECTING/AUDITING/SUCCESS）引导用户继续操作",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "你好，我想开户，请问需要准备什么材料？",
+      "expected_output": "介绍开户流程和所需材料，引导用户开始操作",
+      "files": []
+    }
+  ]
+}

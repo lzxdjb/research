@@ -1,0 +1,39 @@
+tools:
+  - class_name: "verl.tools.hotpot_tool.SearchTool"
+    config:
+      type: native
+      backend: "wikipedia_api"
+      corpus_path: "/data/hotpotqa/corpus.jsonl"
+      top_k: 3
+      max_chars: 1000
+    tool_schema:
+      type: "function"
+      function:
+        name: "Search"
+        description: >
+          Retrieve passages from a knowledge base relevant to the query.
+          Use this tool to look up factual information needed to answer the question.
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: >
+                A focused natural-language search query for one sub-question.
+          required: ["query"]
+
+  - class_name: "verl.tools.hotpot_reward_tool.HotpotRewardTool"
+    config:
+      type: native
+    tool_schema:
+      type: "function"
+      function:
+        name: "calc_hotpot_reward"
+        description: "Internal reward calculation tool; hidden from the model."
+        parameters:
+          type: "object"
+          properties:
+            answer:
+              type: "string"
+              description: "The answer attempt to check against the hidden ground truth."
+          required: ["answer"]

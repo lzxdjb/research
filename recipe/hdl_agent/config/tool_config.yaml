@@ -1,0 +1,98 @@
+tools:
+  - class_name: "recipe.hdl_agent.tools.CompileHDLTool"
+    config:
+      type: native
+      timeout: 30
+      feedback_max_chars: 5000
+      keep_work: false
+    tool_schema:
+      type: "function"
+      function:
+        name: "compile_hdl"
+        description: >
+          Compile/check HDL or Chisel code for syntax, elaboration, semantic
+          validity, and Verilator lint issues. Use this as the first tool call
+          for a candidate design, then revise the code until it passes.
+        parameters:
+          type: "object"
+          properties:
+            code:
+              type: "string"
+              description: "Complete SystemVerilog/Verilog RTL or complete Scala/Chisel source."
+            language:
+              type: "string"
+              enum: ["systemverilog", "verilog", "chisel", "scala"]
+              description: "Language of the submitted code."
+            top_module:
+              type: "string"
+              description: "Top module/class name to compile."
+          required: ["code"]
+
+  - class_name: "recipe.hdl_agent.tools.SimulateHDLTool"
+    config:
+      type: native
+      timeout: 30
+      feedback_max_chars: 5000
+      keep_work: false
+    tool_schema:
+      type: "function"
+      function:
+        name: "simulate_hdl"
+        description: >
+          Run Verilator lint and simulation for HDL or Chisel code. Provide a
+          Verilator C++ testbench_cpp for functional checks. If no testbench_cpp
+          is provided, the judge falls back to a smoke harness that only checks
+          simulator compile/run viability and does not count as functional
+          simulation. This mirrors XiangShan-style Verilator usage: build an
+          executable simulator from RTL, drive it with a C++ harness/workload,
+          and inspect the run result. Use this after compile_hdl passes; do not
+          rely on syntax checks or auto-smoke alone for functional correctness.
+        parameters:
+          type: "object"
+          properties:
+            code:
+              type: "string"
+              description: "Complete SystemVerilog/Verilog RTL or complete Scala/Chisel source."
+            language:
+              type: "string"
+              enum: ["systemverilog", "verilog", "chisel", "scala"]
+              description: "Language of the submitted code."
+            top_module:
+              type: "string"
+              description: "Top module/class name to simulate."
+            testbench_cpp:
+              type: "string"
+              description: "Verilator C++ testbench written by the model. Required for functional simulation credit; no-testbench mode is auto-smoke only."
+          required: ["code"]
+
+  - class_name: "recipe.hdl_agent.tools.SynthesizeHDLTool"
+    config:
+      type: native
+      timeout: 30
+      feedback_max_chars: 5000
+      keep_work: false
+    tool_schema:
+      type: "function"
+      function:
+        name: "synthesize_hdl"
+        description: >
+          Run Yosys synthesis for HDL or Chisel-emitted RTL. Use this to check
+          synthesizability after functional simulation looks correct, before
+          giving the final answer when there is enough turn budget.
+        parameters:
+          type: "object"
+          properties:
+            code:
+              type: "string"
+              description: "Complete SystemVerilog/Verilog RTL or complete Scala/Chisel source."
+            language:
+              type: "string"
+              enum: ["systemverilog", "verilog", "chisel", "scala"]
+              description: "Language of the submitted code."
+            top_module:
+              type: "string"
+              description: "Top module/class name to synthesize."
+            yosys_script:
+              type: "string"
+              description: "Optional custom Yosys script. Defaults to read_verilog -sv; synth; stat."
+          required: ["code"]

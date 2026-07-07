@@ -1,0 +1,89 @@
+tools:
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 1 — SearchMemory  (semantic memory retrieval)
+  # The model calls this to query past (problem, strategy) experience pairs
+  # relevant to its current difficulty. Wired to the shared MemoryBank
+  # singleton; results are scored at episode end via voting.
+  # ──────────────────────────────────────────────────────────────────────
+  - class_name: "verl.tools.hotpot_search_memory_tool.SearchMemoryTool"
+    config:
+      type: native
+      top_k: 3
+    tool_schema:
+      type: "function"
+      function:
+        name: "SearchMemory"
+        description: >
+          Search your memory bank for past strategies relevant to a difficulty you are
+          currently facing. Call this when you are stuck or unsure how to proceed.
+
+          IMPORTANT: The query must describe YOUR CURRENT DIFFICULTY as a problem type,
+          NOT the factual question you are trying to answer.
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: >
+                A 1-sentence description of the difficulty or situation you are facing.
+                Describe the PROBLEM TYPE, not the factual question.
+          required: ["query"]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 2 — Search
+  # ──────────────────────────────────────────────────────────────────────
+  - class_name: "verl.tools.hotpot_tool.SearchTool"
+    config:
+      type: native
+
+      # "wikipedia_api" for live search, "bm25_local" for offline index
+      backend: "wikipedia_api"
+
+      # Required only for bm25_local: path to JSONL corpus
+      corpus_path: "/data/hotpotqa/corpus.jsonl"
+
+      top_k: 3
+      max_chars: 1000
+
+    tool_schema:
+      type: "function"
+      function:
+        name: "Search"
+        description: >
+          Retrieve passages from a knowledge base relevant to the query.
+          Use this tool to look up factual information needed to answer the question,
+          such as biographical details, event descriptions, or numerical facts.
+          Call this tool instead of guessing when you are uncertain about a fact.
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: >
+                A natural-language search query focused on a single sub-question.
+                Use keywords or short phrases. Do not combine multiple unrelated
+                sub-questions in one query.
+          required: ["query"]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 2 — calc_hotpot_reward  (internal scoring tool, hidden from model)
+  # Scores the model's final answer via F1 + exact-match against ground truth.
+  # The ground truth is injected at create() time via tools_kwargs in the dataset.
+  # NOT listed in tool_schemas exposed to the model (filtered by name in the loop).
+  # ──────────────────────────────────────────────────────────────────────
+  - class_name: "verl.tools.hotpot_reward_tool.HotpotRewardTool"
+    config:
+      type: native
+    tool_schema:
+      type: "function"
+      function:
+        name: "calc_hotpot_reward"
+        description: "Internal reward calculation tool — not exposed to the model."
+        parameters:
+          type: "object"
+          properties:
+            answer:
+              type: "string"
+              description: "The model's final answer string extracted from the FINISHED block."
+          required: ["answer"]

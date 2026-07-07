@@ -1,0 +1,58 @@
+tools:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Tool 1 — EnvStep
+  # The only tool exposed to the model.  Takes a single action string and
+  # returns the resulting environment observation.
+  # ─────────────────────────────────────────────────────────────────────────────
+  - class_name: "verl.tools.alfworld_tool.EnvStepTool"
+    config:
+      type: native
+    tool_schema:
+      type: "function"
+      function:
+        name: "EnvStep"
+        description: >
+          Execute one action in the household text environment and receive
+          the resulting observation.
+          IMPORTANT: You must ONLY select an action from the [Available Actions] 
+          list provided in your current observation context!
+          Always issue one action at a time and wait for the observation before
+          deciding the next action.
+        parameters:
+          type: "object"
+          properties:
+            action:
+              type: "string"
+              description: >
+                A single valid action string, e.g. "go to fridge 1" or
+                "take apple 1 from fridge 1".  Do not include multiple
+                actions in one call.
+          required: ["action"]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Tool 2 — calc_alfworld_reward   (internal — NOT exposed to the model)
+  # Called automatically by the agent loop after the model emits <FINISHED>.
+  # ─────────────────────────────────────────────────────────────────────────────
+  # - class_name: "alfworld_tools.CalcALFWorldRewardTool"
+  #   config:
+  #     type: native
+  #   tool_schema:
+  #     type: "function"
+  #     function:
+  #       name: "calc_alfworld_reward"
+  #       description: >
+  #         Internal reward tool.  Not called by the model.
+  #         Scores the episode based on whether the task was completed.
+  #       parameters:
+  #         type: "object"
+  #         properties:
+  #           final_text:
+  #             type: "string"
+  #             description: "The model's final assistant message."
+  #           action_history:
+  #             type: "array"
+  #             items:
+  #               type: "string"
+  #             description: "List of environment observations from tool calls."
+  #         required: ["final_text", "action_history"]

@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+google-genai
+websockets
+python-dotenv
+python-multipart
+resampy
+liveavatar-channel-sdk

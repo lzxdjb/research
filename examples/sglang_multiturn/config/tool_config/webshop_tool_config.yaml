@@ -1,0 +1,47 @@
+tools:
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 1 — EnvStep
+  # Single interface to interact with the WebShop environment.
+  # ──────────────────────────────────────────────────────────────────────
+  - class_name: "verl.tools.webshop_tool.EnvStepTool"
+    config:
+      type: native
+    tool_schema:
+      type: "function"
+      function:
+        name: "EnvStep"
+        description: >
+          Interact with the WebShop e-commerce environment.
+        parameters:
+          type: "object"
+          properties:
+            action:
+              type: "string"
+              description: >
+                The exact action string to execute. Example: "search[gold flipflops]" or "click[Buy Now]".
+          required: ["action"]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Tool 2 — CalcWebShopReward  (internal — NOT exposed to the model)
+  # Scores the agent's final answer after <FINISHED> is emitted.
+  # ──────────────────────────────────────────────────────────────────────
+  # - class_name: "verl.tools.webshop_search_tool.CalcWebShopRewardTool"
+  #   config:
+  #     type: native
+  #   tool_schema:
+  #     type: "function"
+  #     function:
+  #       name: "calc_webshop_reward"
+  #       description: >
+  #         Internal reward tool. Computes the final reward for a WebShop shopping episode.
+  #         Not available to the model — called only by the agent loop after <FINISHED>.
+  #       parameters:
+  #         type: "object"
+  #         properties:
+  #           action:
+  #             type: "string"
+  #             description: "The final action taken by the agent (e.g., 'Buy Now')."
+  #           full_response:
+  #             type: "string"
+  #             description: "The full text of the agent's final response."
+  #         required: ["action"]

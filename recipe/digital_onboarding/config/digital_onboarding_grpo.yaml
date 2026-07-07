@@ -1,0 +1,42 @@
+hydra:
+  searchpath:
+    - file://verl/trainer/config
+
+defaults:
+  - ppo_trainer
+  - _self_
+
+data:
+  max_prompt_length: 4096
+  max_response_length: 4096
+  train_batch_size: 64
+  return_raw_chat: True
+  tool_config_path: recipe/digital_onboarding/config/tool_config.yaml
+  filter_overlong_prompts: False
+  truncation: error
+
+actor_rollout_ref:
+  hybrid_engine: True
+  rollout:
+    name: sglang
+    mode: async
+    multi_turn:
+      enable: True
+      max_assistant_turns: 40
+      max_user_turns: 40
+      max_parallel_calls: 1
+      max_tool_response_length: 2048
+      tool_response_truncate_side: middle
+      format: hermes
+      tool_config_path: recipe/digital_onboarding/config/tool_config.yaml
+      interaction_config_path: recipe/digital_onboarding/config/interaction_config.yaml
+      tokenization_sanity_check_mode: ignore_strippable
+    agent:
+      default_agent_loop: tool_agent
+
+reward:
+  reward_manager:
+    name: dapo
+  custom_reward_function:
+    path: recipe/digital_onboarding/golden_env_reward.py
+    name: compute_score
