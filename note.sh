@@ -102,8 +102,8 @@ git remote add gitlab https://git-cc.myhexin.com:6443/leizhengxing/stock-agent-r
 git push -u gitlab main
 
 
-git add verl run_script
-git commit -m "dsw-1234 add phase reward"
+git add .
+git commit -m "dsw-1234 fix the script"
 git push -u origin master
 
 
