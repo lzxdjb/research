@@ -525,6 +525,8 @@ class DataParallelPPOActor(BasePPOActor):
         loss_mode = self.config.policy_loss.get("loss_mode", "vanilla")
         if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"} and "update_sketch" in data.batch.keys():
             select_keys.append("update_sketch")
+        if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"} and "state_index" in data.batch.keys():
+            select_keys.append("state_index")
         if self.use_prefix_grouper and "prompts" in data.batch.keys():
             select_keys.append("prompts")
         if self.config.use_kl_loss:
@@ -628,6 +630,7 @@ class DataParallelPPOActor(BasePPOActor):
                         extra_loss_kwargs["sum_pi_squared"] = model_inputs.get("sum_pi_squared", None)
                     if needs_update_sketch:
                         extra_loss_kwargs["update_sketch"] = model_inputs.get("update_sketch", None)
+                        extra_loss_kwargs["state_index"] = model_inputs.get("state_index", None)
 
                     # Compute policy loss (any function is expected to return 2 values)
                     pg_loss, pg_metrics = policy_loss_fn(

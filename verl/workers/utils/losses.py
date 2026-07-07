@@ -205,6 +205,7 @@ def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None)
         extra_loss_kwargs["sum_pi_squared"] = data.get("sum_pi_squared", None)
     if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"}:
         extra_loss_kwargs["update_sketch"] = data.get("update_sketch", None)
+        extra_loss_kwargs["state_index"] = data.get("state_index", None)
 
     pg_loss, pg_metrics = policy_loss_fn(
         old_log_prob=old_log_prob,

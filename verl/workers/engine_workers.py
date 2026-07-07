@@ -28,9 +28,10 @@ from torch.distributed.device_mesh import init_device_mesh
 from verl.checkpoint_engine import CheckpointEngineRegistry
 from verl.single_controller.base import Worker
 from verl.single_controller.base.decorator import Dispatch, make_nd_compute_dataproto_dispatch_fn, register
+from verl.trainer.ppo.core_algos import build_state_predictive_index_from_update_sketch
 from verl.utils import tensordict_utils as tu
 from verl.utils.config import omega_conf_to_dataclass
-from verl.utils.device import get_device_name, set_expandable_segments
+from verl.utils.device import get_device_id, get_device_name, set_expandable_segments
 from verl.utils.distributed import initialize_global_process_group_ray
 from verl.utils.flops_counter import FlopsCounter
 from verl.utils.memory_utils import aggressive_empty_cache
@@ -676,6 +677,40 @@ class TrainingWorker(Worker, DistProfilerExtension):
     def set_loss_fn(self, loss_fn):
         self.loss_fn = loss_fn
 
+    def _maybe_precompute_state_predictive_index(self, data: TensorDict) -> None:
+        """Precompute state-predictive segments at local mini-batch scope when safe."""
+        loss_config = getattr(self.loss_fn, "keywords", {}).get("config", None)
+        if loss_config is None:
+            return
+        policy_loss = getattr(loss_config, "policy_loss", None)
+        if policy_loss is None:
+            return
+        loss_mode = policy_loss.get("loss_mode", "vanilla") if hasattr(policy_loss, "get") else policy_loss.loss_mode
+        if loss_mode not in {"state_predictive_grpo", "state_predictive_grpo_normalized"}:
+            return
+        precompute = (
+            policy_loss.get("state_predictive_precompute_state_index", False)
+            if hasattr(policy_loss, "get")
+            else getattr(policy_loss, "state_predictive_precompute_state_index", False)
+        )
+        if not precompute or "state_index" in data.keys() or "update_sketch" not in data.keys():
+            return
+
+        if self.device_name == "cpu":
+            target_device = torch.device("cpu")
+        else:
+            target_device = torch.device(self.device_name, get_device_id())
+
+        with torch.no_grad():
+            state_index, _ = build_state_predictive_index_from_update_sketch(
+                advantages=data["advantages"].to(device=target_device, non_blocking=True),
+                response_mask=data["response_mask"].to(device=target_device, non_blocking=True),
+                update_sketch=data["update_sketch"].to(device=target_device, non_blocking=True),
+                config=loss_config,
+            )
+        if state_index is not None:
+            data["state_index"] = state_index.to(device=data["response_mask"].device, non_blocking=True)
+
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
     def reset(self):
         """
@@ -771,6 +806,8 @@ class TrainingWorker(Worker, DistProfilerExtension):
                 f"Got {mini_batch_size=} and {self.engine.get_data_parallel_size()=}"
             )
             mini_batch_size_per_gpu = mini_batch_size // self.engine.get_data_parallel_size()
+
+        self._maybe_precompute_state_predictive_index(data)
 
         # make iterator
         dataloader = tu.make_iterator(

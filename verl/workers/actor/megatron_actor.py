@@ -407,6 +407,8 @@ class MegatronPPOActor(BasePPOActor):
         loss_mode = self.config.policy_loss.get("loss_mode", "vanilla")
         if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"} and "update_sketch" in data.batch.keys():
             select_keys.append("update_sketch")
+        if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"} and "state_index" in data.batch.keys():
+            select_keys.append("state_index")
         if self.config.use_kl_loss:
             select_keys.append("ref_log_prob")
         # Include pre-computed IS weights if present in batch
@@ -611,6 +613,7 @@ class MegatronPPOActor(BasePPOActor):
                     extra_loss_kwargs["sum_pi_squared"] = data.get("sum_pi_squared", None)
                 if needs_update_sketch:
                     extra_loss_kwargs["update_sketch"] = data.get("update_sketch", None)
+                    extra_loss_kwargs["state_index"] = data.get("state_index", None)
 
 
                 pg_loss, pg_metrics = policy_loss_fn(

@@ -20,11 +20,12 @@ implement PPO-like algorithms.
 
 __all__ = ["register_adv_est", "get_adv_estimator_fn", "AdvantageEstimator"]
 
+import math
+import time
 from collections import defaultdict
 from enum import Enum
 from typing import Any, Callable, Optional
 
-import math
 import numpy as np
 import torch
 from omegaconf import DictConfig
@@ -7811,6 +7812,290 @@ def _build_state_predictive_index(
     return state_index, metrics
 
 
+def _build_state_predictive_index_torch(
+    features: torch.Tensor,
+    response_mask: torch.Tensor,
+    config,
+) -> tuple[torch.Tensor, dict[str, float]]:
+    """Torch implementation of state discovery that keeps DP scoring on-device.
+
+    The exact partition recurrence is still left-to-right in sequence length,
+    but each step scores all rows and candidate segment lengths in parallel.
+    """
+    device = response_mask.device
+    batch_size, seq_len = response_mask.shape
+    dtype = torch.float32
+    mask = response_mask.bool()
+    state_index = torch.full((batch_size, seq_len), -1, device=device, dtype=torch.int32)
+    lengths = mask.sum(dim=-1).to(dtype=torch.long)
+    valid_seq_mask = lengths > 0
+    valid_seq_count = int(valid_seq_mask.sum().item())
+
+    min_segment_len = max(2, int(_config_get(config.policy_loss, "state_predictive_min_segment_len", 2)))
+    max_segment_len_cfg = int(_config_get(config.policy_loss, "state_predictive_max_segment_len", 128))
+    dinkelbach_iters = max(1, int(_config_get(config.policy_loss, "state_predictive_dinkelbach_iters", 6)))
+    tol = float(_config_get(config.policy_loss, "state_predictive_tol", 1e-4))
+    eps = float(_config_get(config.policy_loss, "state_predictive_eps", 1e-8))
+
+    if valid_seq_count == 0:
+        return state_index, {
+            "actor/state_predictive/state_count_mean": 0.0,
+            "actor/state_predictive/state_len_mean": 0.0,
+            "actor/state_predictive/state_len_max": 0.0,
+            "actor/state_predictive/snr_mean": 0.0,
+            "actor/state_predictive/signal_mean": 0.0,
+            "actor/state_predictive/noise_mean": 0.0,
+            "actor/state_predictive/fallback_frac": 0.0,
+            "actor/state_predictive/max_segment_len": float(max_segment_len_cfg),
+            "actor/state_predictive/segment_backend_torch": 1.0,
+        }
+
+    compact_rank = mask.to(dtype=torch.long).cumsum(dim=-1) - 1
+    valid_rows, valid_cols = torch.nonzero(mask, as_tuple=True)
+    state_index[valid_rows, valid_cols] = compact_rank[valid_rows, valid_cols].to(torch.int32)
+
+    max_n = int(lengths.max().item())
+    if max_n < min_segment_len:
+        state_counts = lengths[valid_seq_mask].to(dtype=dtype)
+        return state_index, {
+            "actor/state_predictive/state_count_mean": state_counts.mean().detach().item(),
+            "actor/state_predictive/state_len_mean": 1.0,
+            "actor/state_predictive/state_len_max": 1.0,
+            "actor/state_predictive/snr_mean": 0.0,
+            "actor/state_predictive/signal_mean": 0.0,
+            "actor/state_predictive/noise_mean": 0.0,
+            "actor/state_predictive/fallback_frac": 1.0,
+            "actor/state_predictive/max_segment_len": float(max_segment_len_cfg),
+            "actor/state_predictive/segment_backend_torch": 1.0,
+        }
+
+    max_segment_len = min(max(min_segment_len, max_segment_len_cfg), max_n)
+    feature_dim = features.shape[-1]
+    values = torch.zeros(batch_size, max_n, feature_dim, device=device, dtype=dtype)
+    values[valid_rows, compact_rank[valid_rows, valid_cols]] = features[valid_rows, valid_cols].detach().to(dtype=dtype)
+
+    prefix = torch.zeros(batch_size, max_n + 1, feature_dim, device=device, dtype=dtype)
+    prefix[:, 1:] = torch.cumsum(values, dim=1)
+    sq_values = values.square().sum(dim=-1)
+    sq_prefix = torch.zeros(batch_size, max_n + 1, device=device, dtype=dtype)
+    sq_prefix[:, 1:] = torch.cumsum(sq_values, dim=1)
+
+    batch_ids = torch.arange(batch_size, device=device)
+    safe_lengths = lengths.clamp(min=1)
+    global_sum = prefix[batch_ids, safe_lengths]
+    global_mean = global_sum / safe_lengths.to(dtype=dtype).unsqueeze(-1)
+
+    neg_inf = -torch.inf
+    signal_cost = torch.full((batch_size, max_n + 1, max_segment_len + 1), neg_inf, device=device, dtype=dtype)
+    noise_cost = torch.zeros((batch_size, max_n + 1, max_segment_len + 1), device=device, dtype=dtype)
+
+    for seg_len in range(min_segment_len, max_segment_len + 1):
+        seg_sum = prefix[:, seg_len:] - prefix[:, : max_n + 1 - seg_len]
+        seg_sq_sum = sq_prefix[:, seg_len:] - sq_prefix[:, : max_n + 1 - seg_len]
+        seg_mean = seg_sum / float(seg_len)
+        rss = seg_sq_sum - float(seg_len) * seg_mean.square().sum(dim=-1)
+        rss = rss.clamp_min(0.0)
+        centered = seg_mean - global_mean.unsqueeze(1)
+        signal = float(seg_len) * centered.square().sum(dim=-1)
+        noise = ((seg_len + 1.0) / (seg_len - 1.0)) * rss
+        end_ids = torch.arange(seg_len, max_n + 1, device=device).unsqueeze(0)
+        valid = end_ids <= lengths.unsqueeze(1)
+        signal_cost[:, seg_len:, seg_len] = torch.where(valid, signal, torch.full_like(signal, neg_inf))
+        noise_cost[:, seg_len:, seg_len] = torch.where(valid, noise, torch.zeros_like(noise))
+
+    def solve_for_eta(eta: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        dp = torch.full((batch_size, max_n + 1), neg_inf, device=device, dtype=dtype)
+        signal_dp = torch.zeros((batch_size, max_n + 1), device=device, dtype=dtype)
+        noise_dp = torch.zeros((batch_size, max_n + 1), device=device, dtype=dtype)
+        prev_len = torch.full((batch_size, max_n + 1), -1, device=device, dtype=torch.long)
+        dp[:, 0] = 0.0
+
+        for end in range(1, max_n + 1):
+            max_len_here = min(max_segment_len, end)
+            if max_len_here < min_segment_len:
+                continue
+            lens = torch.arange(min_segment_len, max_len_here + 1, device=device, dtype=torch.long)
+            starts = end - lens
+            sig = signal_cost[:, end, lens]
+            noi = noise_cost[:, end, lens]
+            candidate_scores = dp[:, starts] + sig - eta.unsqueeze(-1) * noi
+            best_scores, best_pos = torch.max(candidate_scores, dim=1)
+            valid = torch.isfinite(best_scores) & (end <= lengths)
+            best_lens = lens[best_pos]
+            best_signal = (signal_dp[:, starts] + sig).gather(1, best_pos.unsqueeze(1)).squeeze(1)
+            best_noise = (noise_dp[:, starts] + noi).gather(1, best_pos.unsqueeze(1)).squeeze(1)
+            dp[:, end] = torch.where(valid, best_scores, torch.full_like(best_scores, neg_inf))
+            signal_dp[:, end] = torch.where(valid, best_signal, torch.zeros_like(best_signal))
+            noise_dp[:, end] = torch.where(valid, best_noise, torch.zeros_like(best_noise))
+            prev_len[:, end] = torch.where(valid, best_lens, torch.full_like(best_lens, -1))
+
+        total_signal = signal_dp[batch_ids, lengths]
+        total_noise = noise_dp[batch_ids, lengths]
+        finished = torch.isfinite(dp[batch_ids, lengths]) & (lengths >= min_segment_len)
+        ratio = total_signal / (total_noise + eps)
+        fallback = valid_seq_mask & ~finished
+        total_signal = torch.where(finished, total_signal, torch.zeros_like(total_signal))
+        total_noise = torch.where(finished, total_noise, torch.zeros_like(total_noise))
+        ratio = torch.where(finished, ratio, torch.zeros_like(ratio))
+        return prev_len, total_signal, total_noise, ratio, fallback
+
+    eta = torch.zeros(batch_size, device=device, dtype=dtype)
+    best_prev_len = None
+    best_signal = torch.zeros(batch_size, device=device, dtype=dtype)
+    best_noise = torch.zeros(batch_size, device=device, dtype=dtype)
+    best_ratio = torch.zeros(batch_size, device=device, dtype=dtype)
+    best_fallback = valid_seq_mask.clone()
+    for _ in range(dinkelbach_iters):
+        prev_len, total_signal, total_noise, ratio, fallback = solve_for_eta(eta)
+        best_prev_len = prev_len
+        best_signal = total_signal
+        best_noise = total_noise
+        best_ratio = ratio
+        best_fallback = fallback
+        delta = total_signal - eta * (total_noise + eps)
+        converged = delta.abs() <= tol * torch.maximum(torch.ones_like(total_signal), total_signal.abs())
+        eta = torch.where(fallback | converged, eta, ratio)
+
+    assert best_prev_len is not None
+    compact_state_index = torch.full((batch_size, max_n), -1, device=device, dtype=torch.int32)
+    state_counts: list[float] = []
+    state_lengths: list[float] = []
+    fallback_count = 0
+    finished_rows = (valid_seq_mask & ~best_fallback & (lengths >= min_segment_len)).detach().cpu().tolist()
+    fallback_rows = (valid_seq_mask & ~torch.as_tensor(finished_rows, device=device, dtype=torch.bool)).detach().cpu().tolist()
+    prev_len_cpu = best_prev_len.detach().cpu()
+    lengths_cpu = lengths.detach().cpu()
+
+    for row, is_fallback in enumerate(fallback_rows):
+        if not valid_seq_mask[row]:
+            continue
+        if is_fallback:
+            n = int(lengths_cpu[row].item())
+            compact_state_index[row, :n] = torch.arange(n, device=device, dtype=torch.int32)
+            state_counts.append(float(n))
+            state_lengths.extend([1.0] * n)
+            fallback_count += 1
+
+    for row, is_finished in enumerate(finished_rows):
+        if not is_finished:
+            continue
+        end = int(lengths_cpu[row].item())
+        row_segments: list[tuple[int, int, int]] = []
+        while end > 0:
+            seg_len = int(prev_len_cpu[row, end].item())
+            if seg_len <= 0:
+                break
+            start = end - seg_len
+            row_segments.append((start, end, seg_len))
+            end = start
+        if end != 0:
+            n = int(lengths_cpu[row].item())
+            compact_state_index[row, :n] = torch.arange(n, device=device, dtype=torch.int32)
+            state_counts.append(float(n))
+            state_lengths.extend([1.0] * n)
+            fallback_count += 1
+        else:
+            row_segments.reverse()
+            for state_id, (start, end, seg_len) in enumerate(row_segments):
+                compact_state_index[row, start:end] = state_id
+                state_lengths.append(float(seg_len))
+            state_counts.append(float(len(row_segments)))
+
+    state_index = torch.full((batch_size, seq_len), -1, device=device, dtype=torch.int32)
+    state_index[valid_rows, valid_cols] = compact_state_index[valid_rows, compact_rank[valid_rows, valid_cols]]
+
+    valid_for_metrics = valid_seq_mask
+    signal_values = best_signal[valid_for_metrics & ~best_fallback].detach()
+    noise_values = best_noise[valid_for_metrics & ~best_fallback].detach()
+    ratio_values = best_ratio[valid_for_metrics & ~best_fallback].detach()
+    denom = max(valid_seq_count, 1)
+    metrics = {
+        "actor/state_predictive/state_count_mean": float(sum(state_counts) / max(len(state_counts), 1)),
+        "actor/state_predictive/state_len_mean": float(sum(state_lengths) / max(len(state_lengths), 1)),
+        "actor/state_predictive/state_len_max": float(max(state_lengths) if state_lengths else 0.0),
+        "actor/state_predictive/snr_mean": ratio_values.mean().detach().item() if ratio_values.numel() else 0.0,
+        "actor/state_predictive/signal_mean": signal_values.mean().detach().item() if signal_values.numel() else 0.0,
+        "actor/state_predictive/noise_mean": noise_values.mean().detach().item() if noise_values.numel() else 0.0,
+        "actor/state_predictive/fallback_frac": float(fallback_count / denom),
+        "actor/state_predictive/max_segment_len": float(max_segment_len),
+        "actor/state_predictive/segment_backend_torch": 1.0,
+    }
+    return state_index, metrics
+
+
+def _state_predictive_metrics_from_index(
+    state_index: torch.Tensor,
+    response_mask: torch.Tensor,
+    config,
+) -> dict[str, float]:
+    """Lightweight metrics when state_index is precomputed outside the loss."""
+    mask = response_mask.bool() & (state_index >= 0)
+    seq_mask = mask.any(dim=-1)
+    state_counts_t = torch.where(
+        seq_mask,
+        state_index.clamp_min(-1).amax(dim=-1).to(dtype=torch.float32) + 1.0,
+        torch.zeros(state_index.shape[0], device=state_index.device, dtype=torch.float32),
+    )
+    state_counts = state_counts_t[seq_mask].detach().cpu().tolist()
+    state_lengths: list[float] = []
+    state_index_cpu = state_index.detach().cpu()
+    mask_cpu = mask.detach().cpu()
+    for row in range(state_index.shape[0]):
+        ids = state_index_cpu[row, mask_cpu[row]]
+        if ids.numel() == 0:
+            continue
+        counts = torch.bincount(ids.to(torch.long))
+        state_lengths.extend(float(x) for x in counts.tolist() if x > 0)
+
+    total_states = max(sum(state_counts), 1.0)
+    total_tokens = float(response_mask.to(dtype=torch.float32).sum().detach().item())
+    max_segment_len = int(_config_get(config.policy_loss, "state_predictive_max_segment_len", 128))
+    return {
+        "actor/state_predictive/state_count_mean": float(sum(state_counts) / max(len(state_counts), 1)),
+        "actor/state_predictive/state_len_mean": float(total_tokens / total_states),
+        "actor/state_predictive/state_len_max": float(max(state_lengths) if state_lengths else 0.0),
+        "actor/state_predictive/snr_mean": 0.0,
+        "actor/state_predictive/signal_mean": 0.0,
+        "actor/state_predictive/noise_mean": 0.0,
+        "actor/state_predictive/fallback_frac": 0.0,
+        "actor/state_predictive/max_segment_len": float(max_segment_len),
+        "actor/state_predictive/precomputed_state_index": 1.0,
+    }
+
+
+def build_state_predictive_index_from_update_sketch(
+    *,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    update_sketch: Optional[torch.Tensor],
+    config,
+) -> tuple[Optional[torch.Tensor], dict[str, float]]:
+    """Precompute state_index when state discovery depends only on update_sketch."""
+    use_update_sketch = bool(_config_get(config.policy_loss, "state_predictive_use_update_sketch", True))
+    if not use_update_sketch or update_sketch is None or update_sketch.dim() != 3:
+        return None, {}
+
+    token_losses = torch.zeros_like(advantages)
+    features, used_update_sketch = _state_predictive_build_features(
+        token_losses=token_losses,
+        advantages=advantages,
+        response_mask=response_mask,
+        config=config,
+        update_sketch=update_sketch,
+    )
+    if not used_update_sketch:
+        return None, {}
+
+    segment_backend = str(_config_get(config.policy_loss, "state_predictive_segment_backend", "numpy")).lower()
+    if segment_backend in {"torch", "gpu", "cuda"}:
+        state_index, metrics = _build_state_predictive_index_torch(features, response_mask, config)
+    else:
+        state_index, metrics = _build_state_predictive_index(features, response_mask, config)
+        metrics["actor/state_predictive/segment_backend_torch"] = 0.0
+    metrics["actor/state_predictive/precomputed_state_index"] = 1.0
+    return state_index, metrics
+
+
 @register_policy_loss("state_predictive_grpo")
 @register_policy_loss("state_predictive_grpo_normalized")
 def compute_policy_loss_state_predictive_grpo(
@@ -7822,6 +8107,7 @@ def compute_policy_loss_state_predictive_grpo(
     config=None,
     rollout_is_weights=None,
     update_sketch: Optional[torch.Tensor] = None,
+    state_index: Optional[torch.Tensor] = None,
     **kwargs,
 ) -> tuple[torch.Tensor, dict]:
     """
@@ -7841,8 +8127,19 @@ def compute_policy_loss_state_predictive_grpo(
         config=config,
         update_sketch=update_sketch,
     )
-    state_index, state_metrics = _build_state_predictive_index(features, response_mask, config)
-    state_index = state_index.to(device=log_prob.device)
+    if state_index is not None:
+        state_index = state_index.to(device=log_prob.device, dtype=torch.int32)
+        state_metrics = _state_predictive_metrics_from_index(state_index, response_mask, config)
+    else:
+        state_index_start = time.perf_counter()
+        segment_backend = str(_config_get(config.policy_loss, "state_predictive_segment_backend", "numpy")).lower()
+        if segment_backend in {"torch", "gpu", "cuda"}:
+            state_index, state_metrics = _build_state_predictive_index_torch(features, response_mask, config)
+        else:
+            state_index, state_metrics = _build_state_predictive_index(features, response_mask, config)
+            state_metrics["actor/state_predictive/segment_backend_torch"] = 0.0
+        state_metrics["actor/state_predictive/build_index_seconds"] = time.perf_counter() - state_index_start
+        state_index = state_index.to(device=log_prob.device)
 
     loss_type = str(_config_get(config.policy_loss, "state_predictive_loss_type", "state_level"))
     if loss_type == "normalized" or _config_get(config.policy_loss, "loss_mode", "") == "state_predictive_grpo_normalized":

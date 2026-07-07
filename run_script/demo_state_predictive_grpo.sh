@@ -2,7 +2,8 @@
 set -euo pipefail
 set -x
 
-PROJECT_DIR=${PROJECT_DIR:-/mnt/code/stock-rl-reflect}
+PROJECT_DIR=${PROJECT_DIR:-/mnt/code/research}
+PROJECT_DIR=/mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/research
 cd "$PROJECT_DIR"
 
 export WANDB_DIR=${WANDB_DIR:-/mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/stock-rl-reflect/wandb_real}
@@ -39,13 +40,31 @@ fi
 export VLLM_RPC_TIMEOUT=3600
 export NCCL_TIMEOUT=7200
 
-STATE_PREDICTIVE_MAX_SEGMENT_LEN=${STATE_PREDICTIVE_MAX_SEGMENT_LEN:-128}
+STATE_PREDICTIVE_MAX_SEGMENT_LEN=${STATE_PREDICTIVE_MAX_SEGMENT_LEN:-512}
 STATE_PREDICTIVE_MIN_SEGMENT_LEN=${STATE_PREDICTIVE_MIN_SEGMENT_LEN:-2}
 STATE_PREDICTIVE_DINKELBACH_ITERS=${STATE_PREDICTIVE_DINKELBACH_ITERS:-6}
 STATE_PREDICTIVE_LOSS_TYPE=${STATE_PREDICTIVE_LOSS_TYPE:-state_level}
 STATE_PREDICTIVE_RATIO_MODE=${STATE_PREDICTIVE_RATIO_MODE:-geo_mean}
+STATE_PREDICTIVE_SEGMENT_BACKEND=${STATE_PREDICTIVE_SEGMENT_BACKEND:-numpy}
+STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX=${STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX:-False}
+STATE_PREDICTIVE_USE_UPDATE_SKETCH=${STATE_PREDICTIVE_USE_UPDATE_SKETCH:-True}
+STATE_PREDICTIVE_NORMALIZE_FEATURES=${STATE_PREDICTIVE_NORMALIZE_FEATURES:-True}
+CALCULATE_UPDATE_SKETCH=${CALCULATE_UPDATE_SKETCH:-$STATE_PREDICTIVE_USE_UPDATE_SKETCH}
 UPDATE_SKETCH_DIM=${UPDATE_SKETCH_DIM:-64}
 UPDATE_SKETCH_SEED=${UPDATE_SKETCH_SEED:-17}
+
+MEGATRON_PARAM_OFFLOAD=${MEGATRON_PARAM_OFFLOAD:-True}
+MEGATRON_OPTIMIZER_OFFLOAD=${MEGATRON_OPTIMIZER_OFFLOAD:-True}
+MEGATRON_GRAD_OFFLOAD=${MEGATRON_GRAD_OFFLOAD:-True}
+REF_MEGATRON_PARAM_OFFLOAD=${REF_MEGATRON_PARAM_OFFLOAD:-True}
+OPTIMIZER_OFFLOAD_FRACTION=${OPTIMIZER_OFFLOAD_FRACTION:-1}
+OVERLAP_CPU_OPTIMIZER_D2H_H2D=${OVERLAP_CPU_OPTIMIZER_D2H_H2D:-True}
+USE_PRECISION_AWARE_OPTIMIZER=${USE_PRECISION_AWARE_OPTIMIZER:-True}
+OPTIMIZER_CPU_OFFLOAD=${OPTIMIZER_CPU_OFFLOAD:-True}
+RECOMPUTE_METHOD=${RECOMPUTE_METHOD:-uniform}
+RECOMPUTE_GRANULARITY=${RECOMPUTE_GRANULARITY:-full}
+RECOMPUTE_NUM_LAYERS=${RECOMPUTE_NUM_LAYERS:-1}
+GRADIENT_ACCUMULATION_FUSION=${GRADIENT_ACCUMULATION_FUSION:-True}
 
 python3 -m verl.trainer.main_ppo --config-path=config \
     --config-name='ppo_megatron_trainer.yaml'\
@@ -72,14 +91,16 @@ python3 -m verl.trainer.main_ppo --config-path=config \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-2} \
     actor_rollout_ref.actor.entropy_coeff=0 \
     actor_rollout_ref.actor.policy_loss.loss_mode=state_predictive_grpo \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_use_update_sketch=True \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_normalize_features=True \
+    +actor_rollout_ref.actor.policy_loss.state_predictive_use_update_sketch=$STATE_PREDICTIVE_USE_UPDATE_SKETCH \
+    +actor_rollout_ref.actor.policy_loss.state_predictive_normalize_features=$STATE_PREDICTIVE_NORMALIZE_FEATURES \
     +actor_rollout_ref.actor.policy_loss.state_predictive_min_segment_len=$STATE_PREDICTIVE_MIN_SEGMENT_LEN \
     +actor_rollout_ref.actor.policy_loss.state_predictive_max_segment_len=$STATE_PREDICTIVE_MAX_SEGMENT_LEN \
     +actor_rollout_ref.actor.policy_loss.state_predictive_dinkelbach_iters=$STATE_PREDICTIVE_DINKELBACH_ITERS \
     +actor_rollout_ref.actor.policy_loss.state_predictive_loss_type=$STATE_PREDICTIVE_LOSS_TYPE \
     +actor_rollout_ref.actor.policy_loss.state_predictive_ratio_mode=$STATE_PREDICTIVE_RATIO_MODE \
-    actor_rollout_ref.actor.calculate_update_sketch=True \
+    +actor_rollout_ref.actor.policy_loss.state_predictive_segment_backend=$STATE_PREDICTIVE_SEGMENT_BACKEND \
+    +actor_rollout_ref.actor.policy_loss.state_predictive_precompute_state_index=$STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX \
+    actor_rollout_ref.actor.calculate_update_sketch=$CALCULATE_UPDATE_SKETCH \
     actor_rollout_ref.actor.update_sketch_dim=$UPDATE_SKETCH_DIM \
     actor_rollout_ref.actor.update_sketch_seed=$UPDATE_SKETCH_SEED \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
@@ -95,21 +116,21 @@ python3 -m verl.trainer.main_ppo --config-path=config \
     actor_rollout_ref.actor.megatron.context_parallel_size=1 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.actor.megatron.use_mbridge=True \
-    actor_rollout_ref.actor.megatron.param_offload=True \
-    actor_rollout_ref.actor.megatron.optimizer_offload=True \
-    actor_rollout_ref.actor.megatron.grad_offload=True \
-    actor_rollout_ref.ref.megatron.param_offload=True \
+    actor_rollout_ref.actor.megatron.param_offload=$MEGATRON_PARAM_OFFLOAD \
+    actor_rollout_ref.actor.megatron.optimizer_offload=$MEGATRON_OPTIMIZER_OFFLOAD \
+    actor_rollout_ref.actor.megatron.grad_offload=$MEGATRON_GRAD_OFFLOAD \
+    actor_rollout_ref.ref.megatron.param_offload=$REF_MEGATRON_PARAM_OFFLOAD \
     actor_rollout_ref.actor.megatron.dist_ckpt_optim_fully_reshardable=False \
     trainer.use_legacy_worker_impl=disable \
     +actor_rollout_ref.rollout.multi_turn.use_seeupo=True \
-    +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_offload_fraction=1 \
-    +actor_rollout_ref.actor.optim.override_optimizer_config.overlap_cpu_optimizer_d2h_h2d=True \
-    +actor_rollout_ref.actor.optim.override_optimizer_config.use_precision_aware_optimizer=True \
-    +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_cpu_offload=True \
-    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_method=uniform \
-    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_granularity=full \
-    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_num_layers=1 \
-    +actor_rollout_ref.actor.megatron.override_transformer_config.gradient_accumulation_fusion=True \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_offload_fraction=$OPTIMIZER_OFFLOAD_FRACTION \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.overlap_cpu_optimizer_d2h_h2d=$OVERLAP_CPU_OPTIMIZER_D2H_H2D \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.use_precision_aware_optimizer=$USE_PRECISION_AWARE_OPTIMIZER \
+    +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_cpu_offload=$OPTIMIZER_CPU_OFFLOAD \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_method=$RECOMPUTE_METHOD \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_granularity=$RECOMPUTE_GRANULARITY \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.recompute_num_layers=$RECOMPUTE_NUM_LAYERS \
+    +actor_rollout_ref.actor.megatron.override_transformer_config.gradient_accumulation_fusion=$GRADIENT_ACCUMULATION_FUSION \
     algorithm.adv_estimator=grpo \
     algorithm.use_kl_in_reward=False \
     trainer.critic_warmup=0 \

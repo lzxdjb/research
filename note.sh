@@ -103,7 +103,7 @@ git push -u gitlab main
 
 
 git add .
-git commit -m "dsw-1234 fix the script"
+git commit -m "dsw-1234 add some speed up"
 git push -u origin main
 
 
@@ -970,3 +970,13 @@ bash run_script/sweep_real_bank_upload_workers.sh \
   --upload-release-mode immediate \
   --raw-upload-response \
   > /tmp/stress_C_min_off_immediate.log 2>&1 & echo $!
+
+
+########## runnign algorithm
+ray stop
+  pkill -KILL -f 'vllm' || true
+  pkill -KILL -f 'VLLM' || true
+SKIP_PIP_INSTALL=1 \
+STATE_PREDICTIVE_SEGMENT_BACKEND=torch \
+STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX=True \
+bash /mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/research/run_script/demo_state_predictive_grpo.sh
