@@ -104,7 +104,7 @@ git push -u gitlab main
 
 git add .
 git commit -m "dsw-1234 fix the script"
-git push -u origin master
+git push -u origin main
 
 
 leizhengxing@myhexin.com
