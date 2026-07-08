@@ -103,7 +103,7 @@ git push -u gitlab main
 
 
 git add .
-git commit -m "dsw-1234 add state agreement grpo"
+git commit -m "dsw-1234 fix the script error"
 git push -u origin main
 
 
