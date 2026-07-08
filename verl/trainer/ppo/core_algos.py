@@ -7601,7 +7601,35 @@ def _masked_mean(values: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
 _STATE_PREDICTIVE_LOSS_MODES = {
     "state_predictive_grpo",
     "state_predictive_grpo_normalized",
+    "state_agreement_grpo",
+    "state_agreement_grpo_normalized",
+    "state_xdomain_grpo",
+    "state_xdomain_grpo_normalized",
 }
+
+_STATE_AGREEMENT_LOSS_MODES = {
+    "state_agreement_grpo",
+    "state_agreement_grpo_normalized",
+    "state_xdomain_grpo",
+    "state_xdomain_grpo_normalized",
+}
+
+
+def _state_predictive_objective(config) -> str:
+    """Resolve the detached segmentation objective.
+
+    The original state-predictive loss uses a Dinkelbach SNR objective.  The
+    agreement objective maximizes within-segment cross-token gradient agreement,
+    ||sum_t phi_t||^2 - sum_t ||phi_t||^2, which removes self-norm noise terms.
+    """
+    policy_loss = getattr(config, "policy_loss", None)
+    loss_mode = str(_config_get(policy_loss, "loss_mode", "")).lower()
+    objective = str(_config_get(policy_loss, "state_predictive_objective", "")).lower()
+    if objective == "":
+        objective = "agreement" if loss_mode in _STATE_AGREEMENT_LOSS_MODES else "snr"
+    if objective in {"agreement", "xdom", "cross_domain", "cross-domain", "pairwise"}:
+        return "agreement"
+    return "snr"
 
 
 def _state_predictive_singleton_index(mask: torch.Tensor) -> torch.Tensor:
@@ -7748,6 +7776,81 @@ def _state_predictive_segment_numpy(
     return best_segments, best_signal, best_noise, best_ratio, fallback
 
 
+def _state_agreement_segment_numpy(
+    values: np.ndarray,
+    *,
+    min_segment_len: int,
+    max_segment_len: int,
+    score_mode: str,
+    eps: float,
+) -> tuple[list[tuple[int, int]], float, bool]:
+    """Exact DP for the cross-token agreement objective on CPU.
+
+    For a segment I, the raw score is
+        ||sum_{t in I} phi_t||^2 - sum_{t in I} ||phi_t||^2
+    which equals twice the sum of pairwise token-gradient inner products.
+    """
+    n = int(values.shape[0])
+    if n <= 1:
+        return [(0, 0)] if n == 1 else [], 0.0, True
+
+    min_segment_len = max(1, int(min_segment_len))
+    max_segment_len = max(min_segment_len, int(max_segment_len))
+    max_segment_len = min(max_segment_len, n)
+
+    x = values.astype(np.float64, copy=False)
+    prefix = np.zeros((n + 1, x.shape[1]), dtype=np.float64)
+    prefix[1:] = np.cumsum(x, axis=0)
+    sq_prefix = np.zeros(n + 1, dtype=np.float64)
+    sq_prefix[1:] = np.cumsum(np.sum(x * x, axis=1), axis=0)
+
+    score_cost = np.full((n + 1, max_segment_len + 1), -np.inf, dtype=np.float64)
+    for end in range(1, n + 1):
+        max_len_here = min(max_segment_len, end)
+        for seg_len in range(min_segment_len, max_len_here + 1):
+            start = end - seg_len
+            seg_sum = prefix[end] - prefix[start]
+            seg_sq_sum = sq_prefix[end] - sq_prefix[start]
+            score = float(np.dot(seg_sum, seg_sum) - seg_sq_sum)
+            if score_mode == "mean_pair":
+                score = score / max(float(seg_len * (seg_len - 1)), eps)
+            elif score_mode == "mean_token":
+                score = score / max(float(seg_len), eps)
+            score_cost[end, seg_len] = score
+
+    dp = np.full(n + 1, -np.inf, dtype=np.float64)
+    prev_len = np.full(n + 1, -1, dtype=np.int64)
+    dp[0] = 0.0
+    for end in range(1, n + 1):
+        max_len_here = min(max_segment_len, end)
+        if max_len_here < min_segment_len:
+            continue
+        lens = np.arange(min_segment_len, max_len_here + 1, dtype=np.int64)
+        starts = end - lens
+        valid = np.isfinite(dp[starts])
+        if not np.any(valid):
+            continue
+        lens = lens[valid]
+        starts = starts[valid]
+        scores = dp[starts] + score_cost[end, lens]
+        best_pos = int(np.argmax(scores))
+        dp[end] = float(scores[best_pos])
+        prev_len[end] = int(lens[best_pos])
+
+    if not np.isfinite(dp[n]) or prev_len[n] < 0:
+        return [(t, t) for t in range(n)], 0.0, True
+
+    segments: list[tuple[int, int]] = []
+    end = n
+    while end > 0:
+        seg_len = int(prev_len[end])
+        start = end - seg_len
+        segments.append((start, end - 1))
+        end = start
+    segments.reverse()
+    return segments, float(dp[n]), False
+
+
 def _build_state_predictive_index(
     features: torch.Tensor,
     response_mask: torch.Tensor,
@@ -7762,12 +7865,17 @@ def _build_state_predictive_index(
     dinkelbach_iters = int(_config_get(config.policy_loss, "state_predictive_dinkelbach_iters", 6))
     tol = float(_config_get(config.policy_loss, "state_predictive_tol", 1e-4))
     eps = float(_config_get(config.policy_loss, "state_predictive_eps", 1e-8))
+    objective = _state_predictive_objective(config)
+    agreement_score_mode = str(
+        _config_get(config.policy_loss, "state_predictive_agreement_score_mode", "raw")
+    ).lower()
 
     state_counts: list[float] = []
     state_lengths: list[float] = []
     ratios: list[float] = []
     signals: list[float] = []
     noises: list[float] = []
+    agreements: list[float] = []
     fallback_count = 0
     valid_seq_count = 0
 
@@ -7779,14 +7887,27 @@ def _build_state_predictive_index(
                 continue
             valid_seq_count += 1
             values = features[row, valid_positions].detach().float().cpu().numpy()
-            segments, signal, noise, ratio, fallback = _state_predictive_segment_numpy(
-                values,
-                min_segment_len=min_segment_len,
-                max_segment_len=max_segment_len,
-                dinkelbach_iters=dinkelbach_iters,
-                tol=tol,
-                eps=eps,
-            )
+            if objective == "agreement":
+                segments, agreement, fallback = _state_agreement_segment_numpy(
+                    values,
+                    min_segment_len=min_segment_len,
+                    max_segment_len=max_segment_len,
+                    score_mode=agreement_score_mode,
+                    eps=eps,
+                )
+                signal = agreement
+                noise = 0.0
+                ratio = 0.0
+            else:
+                segments, signal, noise, ratio, fallback = _state_predictive_segment_numpy(
+                    values,
+                    min_segment_len=min_segment_len,
+                    max_segment_len=max_segment_len,
+                    dinkelbach_iters=dinkelbach_iters,
+                    tol=tol,
+                    eps=eps,
+                )
+                agreement = 0.0
             if fallback:
                 fallback_count += 1
             for state_id, (start, end) in enumerate(segments):
@@ -7797,6 +7918,7 @@ def _build_state_predictive_index(
             ratios.append(float(ratio))
             signals.append(float(signal))
             noises.append(float(noise))
+            agreements.append(float(agreement))
 
     denom = max(valid_seq_count, 1)
     metrics = {
@@ -7806,8 +7928,184 @@ def _build_state_predictive_index(
         "actor/state_predictive/snr_mean": float(sum(ratios) / max(len(ratios), 1)),
         "actor/state_predictive/signal_mean": float(sum(signals) / max(len(signals), 1)),
         "actor/state_predictive/noise_mean": float(sum(noises) / max(len(noises), 1)),
+        "actor/state_predictive/agreement_mean": float(sum(agreements) / max(len(agreements), 1)),
         "actor/state_predictive/fallback_frac": float(fallback_count / denom),
         "actor/state_predictive/max_segment_len": float(max_segment_len),
+        "actor/state_predictive/objective_agreement": float(objective == "agreement"),
+    }
+    return state_index, metrics
+
+
+def _build_state_agreement_index_torch(
+    features: torch.Tensor,
+    response_mask: torch.Tensor,
+    config,
+) -> tuple[torch.Tensor, dict[str, float]]:
+    """Torch DP for agreement-based state discovery.
+
+    Segment score:
+        ||sum_t phi_t||^2 - sum_t ||phi_t||^2
+    This is twice the sum of pairwise token-gradient agreements inside the
+    segment, so singleton self-norm terms do not create artificial signal.
+    """
+    device = response_mask.device
+    batch_size, seq_len = response_mask.shape
+    dtype = torch.float32
+    mask = response_mask.bool()
+    state_index = torch.full((batch_size, seq_len), -1, device=device, dtype=torch.int32)
+    lengths = mask.sum(dim=-1).to(dtype=torch.long)
+    valid_seq_mask = lengths > 0
+    valid_seq_count = int(valid_seq_mask.sum().item())
+
+    min_segment_len = max(1, int(_config_get(config.policy_loss, "state_predictive_min_segment_len", 2)))
+    max_segment_len_cfg = int(_config_get(config.policy_loss, "state_predictive_max_segment_len", 128))
+    eps = float(_config_get(config.policy_loss, "state_predictive_eps", 1e-8))
+    score_mode = str(_config_get(config.policy_loss, "state_predictive_agreement_score_mode", "raw")).lower()
+
+    if valid_seq_count == 0:
+        return state_index, {
+            "actor/state_predictive/state_count_mean": 0.0,
+            "actor/state_predictive/state_len_mean": 0.0,
+            "actor/state_predictive/state_len_max": 0.0,
+            "actor/state_predictive/snr_mean": 0.0,
+            "actor/state_predictive/signal_mean": 0.0,
+            "actor/state_predictive/noise_mean": 0.0,
+            "actor/state_predictive/agreement_mean": 0.0,
+            "actor/state_predictive/fallback_frac": 0.0,
+            "actor/state_predictive/max_segment_len": float(max_segment_len_cfg),
+            "actor/state_predictive/segment_backend_torch": 1.0,
+            "actor/state_predictive/objective_agreement": 1.0,
+        }
+
+    compact_rank = mask.to(dtype=torch.long).cumsum(dim=-1) - 1
+    valid_rows, valid_cols = torch.nonzero(mask, as_tuple=True)
+    max_n = int(lengths.max().item())
+
+    if max_n < min_segment_len:
+        state_index[valid_rows, valid_cols] = compact_rank[valid_rows, valid_cols].to(torch.int32)
+        state_counts = lengths[valid_seq_mask].to(dtype=dtype)
+        return state_index, {
+            "actor/state_predictive/state_count_mean": state_counts.mean().detach().item(),
+            "actor/state_predictive/state_len_mean": 1.0,
+            "actor/state_predictive/state_len_max": 1.0,
+            "actor/state_predictive/snr_mean": 0.0,
+            "actor/state_predictive/signal_mean": 0.0,
+            "actor/state_predictive/noise_mean": 0.0,
+            "actor/state_predictive/agreement_mean": 0.0,
+            "actor/state_predictive/fallback_frac": 1.0,
+            "actor/state_predictive/max_segment_len": float(max_segment_len_cfg),
+            "actor/state_predictive/segment_backend_torch": 1.0,
+            "actor/state_predictive/objective_agreement": 1.0,
+        }
+
+    max_segment_len = min(max(min_segment_len, max_segment_len_cfg), max_n)
+    feature_dim = features.shape[-1]
+    values = torch.zeros(batch_size, max_n, feature_dim, device=device, dtype=dtype)
+    values[valid_rows, compact_rank[valid_rows, valid_cols]] = features[valid_rows, valid_cols].detach().to(dtype=dtype)
+
+    prefix = torch.zeros(batch_size, max_n + 1, feature_dim, device=device, dtype=dtype)
+    prefix[:, 1:] = torch.cumsum(values, dim=1)
+    sq_values = values.square().sum(dim=-1)
+    sq_prefix = torch.zeros(batch_size, max_n + 1, device=device, dtype=dtype)
+    sq_prefix[:, 1:] = torch.cumsum(sq_values, dim=1)
+
+    neg_inf = -torch.inf
+    score_cost = torch.full((batch_size, max_n + 1, max_segment_len + 1), neg_inf, device=device, dtype=dtype)
+    for seg_len in range(min_segment_len, max_segment_len + 1):
+        seg_sum = prefix[:, seg_len:] - prefix[:, : max_n + 1 - seg_len]
+        seg_sq_sum = sq_prefix[:, seg_len:] - sq_prefix[:, : max_n + 1 - seg_len]
+        score = seg_sum.square().sum(dim=-1) - seg_sq_sum
+        if score_mode == "mean_pair":
+            score = score / max(float(seg_len * (seg_len - 1)), eps)
+        elif score_mode == "mean_token":
+            score = score / max(float(seg_len), eps)
+        end_ids = torch.arange(seg_len, max_n + 1, device=device).unsqueeze(0)
+        valid = end_ids <= lengths.unsqueeze(1)
+        score_cost[:, seg_len:, seg_len] = torch.where(valid, score, torch.full_like(score, neg_inf))
+
+    dp = torch.full((batch_size, max_n + 1), neg_inf, device=device, dtype=dtype)
+    prev_len = torch.full((batch_size, max_n + 1), -1, device=device, dtype=torch.long)
+    dp[:, 0] = 0.0
+    for end in range(1, max_n + 1):
+        max_len_here = min(max_segment_len, end)
+        if max_len_here < min_segment_len:
+            continue
+        lens = torch.arange(min_segment_len, max_len_here + 1, device=device, dtype=torch.long)
+        starts = end - lens
+        candidate_scores = dp[:, starts] + score_cost[:, end, lens]
+        best_scores, best_pos = torch.max(candidate_scores, dim=1)
+        valid = torch.isfinite(best_scores) & (end <= lengths)
+        best_lens = lens[best_pos]
+        dp[:, end] = torch.where(valid, best_scores, torch.full_like(best_scores, neg_inf))
+        prev_len[:, end] = torch.where(valid, best_lens, torch.full_like(best_lens, -1))
+
+    batch_ids = torch.arange(batch_size, device=device)
+    total_score = dp[batch_ids, lengths]
+    finished = torch.isfinite(total_score) & valid_seq_mask
+    fallback = valid_seq_mask & ~finished
+    total_score = torch.where(finished, total_score, torch.zeros_like(total_score))
+
+    compact_state_index = torch.full((batch_size, max_n), -1, device=device, dtype=torch.int32)
+    state_counts: list[float] = []
+    state_lengths: list[float] = []
+    fallback_count = 0
+    prev_len_cpu = prev_len.detach().cpu()
+    lengths_cpu = lengths.detach().cpu()
+    valid_cpu = valid_seq_mask.detach().cpu().tolist()
+    fallback_cpu = fallback.detach().cpu().tolist()
+
+    for row in range(batch_size):
+        if not valid_cpu[row]:
+            continue
+        if fallback_cpu[row]:
+            n = int(lengths_cpu[row].item())
+            compact_state_index[row, :n] = torch.arange(n, device=device, dtype=torch.int32)
+            state_counts.append(float(n))
+            state_lengths.extend([1.0] * n)
+            fallback_count += 1
+            continue
+
+        end = int(lengths_cpu[row].item())
+        row_segments: list[tuple[int, int, int]] = []
+        while end > 0:
+            seg_len = int(prev_len_cpu[row, end].item())
+            if seg_len <= 0:
+                break
+            start = end - seg_len
+            row_segments.append((start, end, seg_len))
+            end = start
+        if end != 0:
+            n = int(lengths_cpu[row].item())
+            compact_state_index[row, :n] = torch.arange(n, device=device, dtype=torch.int32)
+            state_counts.append(float(n))
+            state_lengths.extend([1.0] * n)
+            fallback_count += 1
+        else:
+            row_segments.reverse()
+            for state_id, (start, end, seg_len) in enumerate(row_segments):
+                compact_state_index[row, start:end] = state_id
+                state_lengths.append(float(seg_len))
+            state_counts.append(float(len(row_segments)))
+
+    state_index = torch.full((batch_size, seq_len), -1, device=device, dtype=torch.int32)
+    state_index[valid_rows, valid_cols] = compact_state_index[valid_rows, compact_rank[valid_rows, valid_cols]]
+
+    score_values = total_score[valid_seq_mask & ~fallback].detach()
+    total_states = max(sum(state_counts), 1.0)
+    total_tokens = float(response_mask.to(dtype=torch.float32).sum().detach().item())
+    denom = max(valid_seq_count, 1)
+    metrics = {
+        "actor/state_predictive/state_count_mean": float(sum(state_counts) / max(len(state_counts), 1)),
+        "actor/state_predictive/state_len_mean": float(total_tokens / total_states),
+        "actor/state_predictive/state_len_max": float(max(state_lengths) if state_lengths else 0.0),
+        "actor/state_predictive/snr_mean": 0.0,
+        "actor/state_predictive/signal_mean": score_values.mean().detach().item() if score_values.numel() else 0.0,
+        "actor/state_predictive/noise_mean": 0.0,
+        "actor/state_predictive/agreement_mean": score_values.mean().detach().item() if score_values.numel() else 0.0,
+        "actor/state_predictive/fallback_frac": float(fallback_count / denom),
+        "actor/state_predictive/max_segment_len": float(max_segment_len),
+        "actor/state_predictive/segment_backend_torch": 1.0,
+        "actor/state_predictive/objective_agreement": 1.0,
     }
     return state_index, metrics
 
@@ -7822,6 +8120,9 @@ def _build_state_predictive_index_torch(
     The exact partition recurrence is still left-to-right in sequence length,
     but each step scores all rows and candidate segment lengths in parallel.
     """
+    if _state_predictive_objective(config) == "agreement":
+        return _build_state_agreement_index_torch(features, response_mask, config)
+
     device = response_mask.device
     batch_size, seq_len = response_mask.shape
     dtype = torch.float32
@@ -7845,9 +8146,11 @@ def _build_state_predictive_index_torch(
             "actor/state_predictive/snr_mean": 0.0,
             "actor/state_predictive/signal_mean": 0.0,
             "actor/state_predictive/noise_mean": 0.0,
+            "actor/state_predictive/agreement_mean": 0.0,
             "actor/state_predictive/fallback_frac": 0.0,
             "actor/state_predictive/max_segment_len": float(max_segment_len_cfg),
             "actor/state_predictive/segment_backend_torch": 1.0,
+            "actor/state_predictive/objective_agreement": 0.0,
         }
 
     compact_rank = mask.to(dtype=torch.long).cumsum(dim=-1) - 1
@@ -7864,9 +8167,11 @@ def _build_state_predictive_index_torch(
             "actor/state_predictive/snr_mean": 0.0,
             "actor/state_predictive/signal_mean": 0.0,
             "actor/state_predictive/noise_mean": 0.0,
+            "actor/state_predictive/agreement_mean": 0.0,
             "actor/state_predictive/fallback_frac": 1.0,
             "actor/state_predictive/max_segment_len": float(max_segment_len_cfg),
             "actor/state_predictive/segment_backend_torch": 1.0,
+            "actor/state_predictive/objective_agreement": 0.0,
         }
 
     max_segment_len = min(max(min_segment_len, max_segment_len_cfg), max_n)
@@ -8016,9 +8321,11 @@ def _build_state_predictive_index_torch(
         "actor/state_predictive/snr_mean": ratio_values.mean().detach().item() if ratio_values.numel() else 0.0,
         "actor/state_predictive/signal_mean": signal_values.mean().detach().item() if signal_values.numel() else 0.0,
         "actor/state_predictive/noise_mean": noise_values.mean().detach().item() if noise_values.numel() else 0.0,
+        "actor/state_predictive/agreement_mean": 0.0,
         "actor/state_predictive/fallback_frac": float(fallback_count / denom),
         "actor/state_predictive/max_segment_len": float(max_segment_len),
         "actor/state_predictive/segment_backend_torch": 1.0,
+        "actor/state_predictive/objective_agreement": 0.0,
     }
     return state_index, metrics
 
@@ -8050,6 +8357,7 @@ def _state_predictive_metrics_from_index(
     total_states = max(sum(state_counts), 1.0)
     total_tokens = float(response_mask.to(dtype=torch.float32).sum().detach().item())
     max_segment_len = int(_config_get(config.policy_loss, "state_predictive_max_segment_len", 128))
+    objective = _state_predictive_objective(config)
     return {
         "actor/state_predictive/state_count_mean": float(sum(state_counts) / max(len(state_counts), 1)),
         "actor/state_predictive/state_len_mean": float(total_tokens / total_states),
@@ -8057,9 +8365,11 @@ def _state_predictive_metrics_from_index(
         "actor/state_predictive/snr_mean": 0.0,
         "actor/state_predictive/signal_mean": 0.0,
         "actor/state_predictive/noise_mean": 0.0,
+        "actor/state_predictive/agreement_mean": 0.0,
         "actor/state_predictive/fallback_frac": 0.0,
         "actor/state_predictive/max_segment_len": float(max_segment_len),
         "actor/state_predictive/precomputed_state_index": 1.0,
+        "actor/state_predictive/objective_agreement": float(objective == "agreement"),
     }
 
 
@@ -8098,6 +8408,10 @@ def build_state_predictive_index_from_update_sketch(
 
 @register_policy_loss("state_predictive_grpo")
 @register_policy_loss("state_predictive_grpo_normalized")
+@register_policy_loss("state_agreement_grpo")
+@register_policy_loss("state_agreement_grpo_normalized")
+@register_policy_loss("state_xdomain_grpo")
+@register_policy_loss("state_xdomain_grpo_normalized")
 def compute_policy_loss_state_predictive_grpo(
     old_log_prob: torch.Tensor,
     log_prob: torch.Tensor,
@@ -8111,9 +8425,10 @@ def compute_policy_loss_state_predictive_grpo(
     **kwargs,
 ) -> tuple[torch.Tensor, dict]:
     """
-    Learn contiguous state segments by predictive gradient SNR, then apply a
-    state-level GRPO-style loss. The segmentation is detached and can use the
-    update-sketch credit proxy S(e_y - pi) when the actor provides it.
+    Learn contiguous state segments with a detached objective, then apply a
+    state-level GRPO-style loss. Supported discovery objectives include the
+    original predictive-SNR score and the agreement score
+    ||sum_t phi_t||^2 - sum_t ||phi_t||^2.
     """
     assert config is not None
 
@@ -8142,7 +8457,13 @@ def compute_policy_loss_state_predictive_grpo(
         state_index = state_index.to(device=log_prob.device)
 
     loss_type = str(_config_get(config.policy_loss, "state_predictive_loss_type", "state_level"))
-    if loss_type == "normalized" or _config_get(config.policy_loss, "loss_mode", "") == "state_predictive_grpo_normalized":
+    loss_mode = str(_config_get(config.policy_loss, "loss_mode", ""))
+    normalized_modes = {
+        "state_predictive_grpo_normalized",
+        "state_agreement_grpo_normalized",
+        "state_xdomain_grpo_normalized",
+    }
+    if loss_type == "normalized" or loss_mode in normalized_modes:
         loss_mat, state_counts = _build_turn_mean_loss_mat(
             token_losses, response_mask, state_index, divide_by_turn_count=True
         )

@@ -523,9 +523,17 @@ class DataParallelPPOActor(BasePPOActor):
             "advantages",
         ]
         loss_mode = self.config.policy_loss.get("loss_mode", "vanilla")
-        if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"} and "update_sketch" in data.batch.keys():
+        state_predictive_modes = {
+            "state_predictive_grpo",
+            "state_predictive_grpo_normalized",
+            "state_agreement_grpo",
+            "state_agreement_grpo_normalized",
+            "state_xdomain_grpo",
+            "state_xdomain_grpo_normalized",
+        }
+        if loss_mode in state_predictive_modes and "update_sketch" in data.batch.keys():
             select_keys.append("update_sketch")
-        if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"} and "state_index" in data.batch.keys():
+        if loss_mode in state_predictive_modes and "state_index" in data.batch.keys():
             select_keys.append("state_index")
         if self.use_prefix_grouper and "prompts" in data.batch.keys():
             select_keys.append("prompts")
@@ -587,7 +595,7 @@ class DataParallelPPOActor(BasePPOActor):
                         "vanilla_adaptive_alpha_grpo",
                         "adaptive_alpha_grpo",
                     }
-                    needs_update_sketch = loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"}
+                    needs_update_sketch = loss_mode in state_predictive_modes
                     entropy_coeff = self.config.entropy_coeff
                     loss_agg_mode = self.config.loss_agg_mode
 

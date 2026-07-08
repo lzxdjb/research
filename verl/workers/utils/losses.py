@@ -203,7 +203,14 @@ def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None)
         "adaptive_alpha_grpo",
     }:
         extra_loss_kwargs["sum_pi_squared"] = data.get("sum_pi_squared", None)
-    if loss_mode in {"state_predictive_grpo", "state_predictive_grpo_normalized"}:
+    if loss_mode in {
+        "state_predictive_grpo",
+        "state_predictive_grpo_normalized",
+        "state_agreement_grpo",
+        "state_agreement_grpo_normalized",
+        "state_xdomain_grpo",
+        "state_xdomain_grpo_normalized",
+    }:
         extra_loss_kwargs["update_sketch"] = data.get("update_sketch", None)
         extra_loss_kwargs["state_index"] = data.get("state_index", None)
 

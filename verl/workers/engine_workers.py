@@ -686,7 +686,15 @@ class TrainingWorker(Worker, DistProfilerExtension):
         if policy_loss is None:
             return
         loss_mode = policy_loss.get("loss_mode", "vanilla") if hasattr(policy_loss, "get") else policy_loss.loss_mode
-        if loss_mode not in {"state_predictive_grpo", "state_predictive_grpo_normalized"}:
+        state_predictive_modes = {
+            "state_predictive_grpo",
+            "state_predictive_grpo_normalized",
+            "state_agreement_grpo",
+            "state_agreement_grpo_normalized",
+            "state_xdomain_grpo",
+            "state_xdomain_grpo_normalized",
+        }
+        if loss_mode not in state_predictive_modes:
             return
         precompute = (
             policy_loss.get("state_predictive_precompute_state_index", False)
