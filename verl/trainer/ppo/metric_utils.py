@@ -573,6 +573,9 @@ def calc_maj_val(data: list[dict[str, Any]], vote_key: str, val_key: str) -> flo
     return maj_val
 
 
+VALIDATION_AVG_PASS_KS = (1, 2, 4)
+
+
 def process_validation_metrics(
     data_sources: list[str], sample_uids: list[str], infos_dict: dict[str, list[Any]], seed: int = 42
 ) -> dict[str, dict[str, dict[str, float]]]:
@@ -601,6 +604,8 @@ def process_validation_metrics(
         }
 
         Where metric_name includes:
+        - "Avg@K": Mean value across the first K samples for K in (1, 2, 4)
+        - "Pass@K": Best value across the first K samples for K in (1, 2, 4)
         - "mean@N": Mean value across N samples
         - "std@N": Standard deviation across N samples
         - "best@N/mean": Mean of the best values in bootstrap samples of size N
@@ -665,6 +670,12 @@ def process_validation_metrics(
                 # compute mean and std
                 n_resps = len(var_vals)
                 metric = {f"mean@{n_resps}": float(np_mean(var_vals))}
+                for k in VALIDATION_AVG_PASS_KS:
+                    if n_resps < k:
+                        continue
+                    vals_at_k = var_vals[:k]
+                    metric[f"Avg@{k}"] = float(np_mean(vals_at_k))
+                    metric[f"Pass@{k}"] = float(np.max(vals_at_k))
 
                 if n_resps > 1:
                     metric[f"std@{n_resps}"] = float(np_std(var_vals))

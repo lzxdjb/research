@@ -541,6 +541,24 @@ class TestProcessValidationMetrics(unittest.TestCase):
         # For bootstrap with n=2, the majority vote could be either A or B
         # depending on the random sampling, so we don't check the exact value
 
+    def test_process_validation_metrics_avg_pass_at_k(self):
+        """Test Avg@K and Pass@K validation metrics."""
+        data_sources = ["source1"] * 4
+        sample_inputs = ["prompt1"] * 4
+        infos_dict = {
+            "score": [0.0, 1.0, 0.0, 1.0],
+        }
+
+        result = process_validation_metrics(data_sources, sample_inputs, infos_dict, seed=42)
+        metrics = result["source1"]["score"]
+
+        self.assertAlmostEqual(metrics["Avg@1"], 0.0)
+        self.assertAlmostEqual(metrics["Avg@2"], 0.5)
+        self.assertAlmostEqual(metrics["Avg@4"], 0.5)
+        self.assertAlmostEqual(metrics["Pass@1"], 0.0)
+        self.assertAlmostEqual(metrics["Pass@2"], 1.0)
+        self.assertAlmostEqual(metrics["Pass@4"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()
