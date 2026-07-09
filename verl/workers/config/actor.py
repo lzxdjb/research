@@ -74,7 +74,9 @@ class PolicyLossConfig(BaseConfig):
     The inheritance from BaseConfig provides omegaconf.DictConfig-like interface for a dataclass config.
 
     Args:
-        loss_mode (str): Loss function mode. Options include 'vanilla', 'turn_level_ppo', 'clip-cov', 'kl-cov', 'gpg'.
+        loss_mode (str): Loss function mode. Options include 'vanilla', 'turn_level_ppo', 'clip-cov',
+            'kl-cov', 'gpg', 'simple_intentional_grpo', 'vanilla_adaptive_alpha_grpo',
+            and 'vanilla_norm_matched_alpha_grpo'.
         clip_cov_ratio (float): Ratio of tokens to be clipped for clip-cov loss.
         clip_cov_lb (float): Lower bound for clip-cov loss.
         clip_cov_ub (float): Upper bound for clip-cov loss.

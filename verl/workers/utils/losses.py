@@ -201,6 +201,8 @@ def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None)
         "intentional_grpo",
         "vanilla_adaptive_alpha_grpo",
         "adaptive_alpha_grpo",
+        "vanilla_norm_matched_alpha_grpo",
+        "norm_matched_alpha_grpo",
     }:
         extra_loss_kwargs["sum_pi_squared"] = data.get("sum_pi_squared", None)
     if loss_mode in {

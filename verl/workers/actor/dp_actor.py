@@ -594,6 +594,8 @@ class DataParallelPPOActor(BasePPOActor):
                         "intentional_grpo",
                         "vanilla_adaptive_alpha_grpo",
                         "adaptive_alpha_grpo",
+                        "vanilla_norm_matched_alpha_grpo",
+                        "norm_matched_alpha_grpo",
                     }
                     needs_update_sketch = loss_mode in state_predictive_modes
                     entropy_coeff = self.config.entropy_coeff

@@ -135,7 +135,7 @@ fi
 if [[ -n "${TRAIN_MAX_SAMPLES:-}" ]]; then
     EXTRA_OVERRIDES+=(data.train_max_samples="$TRAIN_MAX_SAMPLES")
 fi
-if [[ "$POLICY_LOSS_MODE" == "simple_intentional_grpo" || "$POLICY_LOSS_MODE" == "intentional_grpo" || "$POLICY_LOSS_MODE" == "vanilla_adaptive_alpha_grpo" || "$POLICY_LOSS_MODE" == "adaptive_alpha_grpo" ]]; then
+if [[ "$POLICY_LOSS_MODE" == "simple_intentional_grpo" || "$POLICY_LOSS_MODE" == "intentional_grpo" || "$POLICY_LOSS_MODE" == "vanilla_adaptive_alpha_grpo" || "$POLICY_LOSS_MODE" == "adaptive_alpha_grpo" || "$POLICY_LOSS_MODE" == "vanilla_norm_matched_alpha_grpo" || "$POLICY_LOSS_MODE" == "norm_matched_alpha_grpo" ]]; then
     EXTRA_OVERRIDES+=(actor_rollout_ref.actor.policy_loss.intentional_eta="$INTENTIONAL_ETA")
     EXTRA_OVERRIDES+=(actor_rollout_ref.actor.policy_loss.intentional_score_norm_eps="$INTENTIONAL_SCORE_NORM_EPS")
     EXTRA_OVERRIDES+=(actor_rollout_ref.actor.policy_loss.intentional_clip_target="$INTENTIONAL_CLIP_TARGET")

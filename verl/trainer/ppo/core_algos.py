@@ -3151,7 +3151,8 @@ def _assert_intentional_target_clipping_enabled(config: Optional[ActorConfig], l
         raise ValueError(
             f"{loss_name} does not have an independent PPO clipped objective. "
             "Set actor_rollout_ref.actor.policy_loss.intentional_clip_target=True, "
-            "or use loss_mode=vanilla / vanilla_adaptive_alpha_grpo for clipped vanilla behavior."
+            "or use loss_mode=vanilla / vanilla_adaptive_alpha_grpo / "
+            "vanilla_norm_matched_alpha_grpo for clipped vanilla behavior."
         )
 
 
@@ -3513,6 +3514,111 @@ def compute_policy_loss_vanilla_adaptive_alpha_grpo(
         "actor/intentional_target_abs_mean": verl_F.masked_mean(target_delta.detach().abs(), response_mask).detach().item(),
         "actor/intentional_pred_abs_mean": verl_F.masked_mean(pred_delta.detach().abs(), response_mask).detach().item(),
         "actor/intentional_target_error": normalized_error.detach().item(),
+        "actor/intentional_target_clipped_frac": verl_F.masked_mean(target_clipped.float(), valid_target).detach().item(),
+        "actor/intentional_used_sum_pi_squared": float(used_sum_pi_squared),
+        "actor/intentional_ratio_mean": verl_F.masked_mean(ratio.detach(), response_mask).detach().item(),
+    }
+    return pg_loss, pg_metrics
+
+
+@register_policy_loss("vanilla_norm_matched_alpha_grpo")
+@register_policy_loss("norm_matched_alpha_grpo")
+def compute_policy_loss_vanilla_norm_matched_alpha_grpo(
+    old_log_prob: torch.Tensor,
+    log_prob: torch.Tensor,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    loss_agg_mode: str = "token-mean",
+    config: Optional[ActorConfig] = None,
+    rollout_is_weights: torch.Tensor | None = None,
+    sum_pi_squared: torch.Tensor | None = None,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+    """Vanilla clipped GRPO direction with norm-matched intentional scaling.
+
+    The projection-based adaptive-alpha variant solves for a scalar that best
+    matches every token target. This variant keeps the same vanilla clipped
+    direction, but matches only the L2 radius of the intended token-level
+    log-probability movement:
+
+        alpha = ||b||_2 / (||h||_2 + eps),
+
+    where b is the clipped intentional target and h is the diagonal proxy for
+    the log-probability movement produced by one unit of vanilla GRPO loss.
+    """
+    assert config is not None
+    assert not isinstance(config, AlgoConfig)
+
+    pg_losses, active_coeff, negative_approx_kl, ratio, ppo_kl, pg_clipfrac, pg_clipfrac_lower = _compute_vanilla_grpo_terms(
+        old_log_prob=old_log_prob,
+        log_prob=log_prob,
+        advantages=advantages,
+        response_mask=response_mask,
+        config=config,
+        rollout_is_weights=rollout_is_weights,
+    )
+    score_norm, used_sum_pi_squared = _compute_score_norm_proxy(
+        old_log_prob=old_log_prob,
+        response_mask=response_mask,
+        config=config,
+        sum_pi_squared=sum_pi_squared,
+    )
+    target_delta, target_clipped = _compute_intentional_logprob_target(
+        negative_approx_kl=negative_approx_kl,
+        advantages=advantages,
+        response_mask=response_mask,
+        config=config,
+    )
+
+    eps = float(_policy_loss_cfg_get(config, "intentional_score_norm_eps", 1e-8))
+    mask = response_mask.to(device=advantages.device, dtype=advantages.dtype)
+    h = (active_coeff * score_norm).detach() * mask
+    target_delta = target_delta.detach() * mask
+
+    h_sq = (h.square() * mask).sum()
+    target_sq = (target_delta.square() * mask).sum()
+    h_l2 = torch.sqrt(h_sq)
+    target_l2 = torch.sqrt(target_sq)
+    alpha_scale = target_l2 / (h_l2 + eps)
+
+    alpha_min = _policy_loss_cfg_get(config, "intentional_alpha_min", 0.0)
+    alpha_max = _policy_loss_cfg_get(config, "intentional_alpha_max", None)
+    if alpha_min is not None:
+        alpha_scale = torch.clamp(alpha_scale, min=float(alpha_min))
+    if alpha_max is not None:
+        alpha_scale = torch.clamp(alpha_scale, max=float(alpha_max))
+
+    pg_loss = agg_loss(
+        loss_mat=alpha_scale.detach() * pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
+    )
+
+    pred_delta = alpha_scale.detach() * h
+    target_error = (pred_delta - target_delta).square()
+    target_norm = target_sq.clamp(min=eps)
+    normalized_error = (target_error * mask).sum() / target_norm
+    pred_l2 = torch.sqrt((pred_delta.square() * mask).sum())
+    norm_error = (pred_l2 - target_l2).square() / target_norm
+    dot = (target_delta * h * mask).sum()
+    projection_cos = dot / ((target_l2 * h_l2).clamp(min=eps))
+    projection_alpha = dot / h_sq.clamp(min=eps)
+
+    valid_target = ((advantages != 0).float() * response_mask.to(dtype=advantages.dtype)).to(device=advantages.device)
+    pg_metrics = {
+        "actor/pg_clipfrac": pg_clipfrac.detach().item(),
+        "actor/ppo_kl": ppo_kl.detach().item(),
+        "actor/pg_clipfrac_lower": pg_clipfrac_lower.detach().item(),
+        "actor/intentional_eta": float(_policy_loss_cfg_get(config, "intentional_eta", 1.0)),
+        "actor/intentional_alpha_scale": alpha_scale.detach().item(),
+        "actor/intentional_alpha_norm_scale": alpha_scale.detach().item(),
+        "actor/intentional_alpha_projection_scale": projection_alpha.detach().item(),
+        "actor/intentional_projection_cos": projection_cos.detach().item(),
+        "actor/intentional_score_norm_mean": verl_F.masked_mean(score_norm.detach(), response_mask).detach().item(),
+        "actor/intentional_target_abs_mean": verl_F.masked_mean(target_delta.detach().abs(), response_mask).detach().item(),
+        "actor/intentional_pred_abs_mean": verl_F.masked_mean(pred_delta.detach().abs(), response_mask).detach().item(),
+        "actor/intentional_target_error": normalized_error.detach().item(),
+        "actor/intentional_norm_error": norm_error.detach().item(),
         "actor/intentional_target_clipped_frac": verl_F.masked_mean(target_clipped.float(), valid_target).detach().item(),
         "actor/intentional_used_sum_pi_squared": float(used_sum_pi_squared),
         "actor/intentional_ratio_mean": verl_F.masked_mean(ratio.detach(), response_mask).detach().item(),

@@ -57,7 +57,8 @@ policy_loss:
   # # Required when using verl.utils.omega_conf_to_dataclass to instantiate dataclass configs
   _target_: verl.workers.config.PolicyLossConfig
 
-  # Loss function mode: vanilla / turn_level_ppo / clip-cov / kl-cov / gpg
+  # Loss function mode: vanilla / turn_level_ppo / clip-cov / kl-cov / gpg /
+  # simple_intentional_grpo / vanilla_adaptive_alpha_grpo / vanilla_norm_matched_alpha_grpo
   loss_mode: "vanilla"
 
   # Ratio of tokens to be clipped for clip-cov loss
