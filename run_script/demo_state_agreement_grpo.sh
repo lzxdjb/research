@@ -2,7 +2,7 @@
 set -euo pipefail
 set -x
 
-PROJECT_DIR=${PROJECT_DIR:-/Users/lzx/Desktop/paper/stock-rl-reflect}
+PROJECT_DIR=${PROJECT_DIR:-/mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/research}
 cd "$PROJECT_DIR"
 
 export WANDB_DIR=${WANDB_DIR:-$PROJECT_DIR/wandb_real}

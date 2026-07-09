@@ -9,4 +9,7 @@ echo $! > /tmp/digital_onboarding_4b_server.pid
 disown
 ps -eo pid,ppid,stat,pcpu,comm,args --sort=-pcpu | grep 'multiprocessing.spawn'
 
+  pkill -KILL -f 'vllm' || true
+  pkill -KILL -f 'VLLM' || true
+  ray stop
 pgrep -f 'multiprocessing\.spawn.*spawn_main' | xargs -r kill -KILL

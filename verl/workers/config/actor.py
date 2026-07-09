@@ -105,6 +105,8 @@ class PolicyLossConfig(BaseConfig):
     state_predictive_eps: float = 1e-8
     state_predictive_loss_type: str = "state_level"
     state_predictive_ratio_mode: str = "geo_mean"
+    state_predictive_objective: str = ""
+    state_predictive_agreement_score_mode: str = "raw"
     state_predictive_segment_backend: str = "numpy"
     state_predictive_precompute_state_index: bool = False
 
