@@ -1,7 +1,7 @@
 ai2thor==2.1.0
 opencv-python
 pandas
-textworld[pddl]>=1.6.1
+textworld[pddl]>=1.7.0
 torch
 torchvision
 tqdm
