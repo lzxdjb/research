@@ -111,6 +111,9 @@ class PolicyLossConfig(BaseConfig):
     state_predictive_agreement_score_mode: str = "raw"
     state_predictive_segment_backend: str = "numpy"
     state_predictive_precompute_state_index: bool = False
+    state_evidence_noise_var: float = -1.0
+    state_evidence_prior_var: float = -1.0
+    state_joint_max_abs_log_ratio: float = 20.0
 
 
 @dataclass

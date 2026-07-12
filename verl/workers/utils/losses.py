@@ -212,6 +212,7 @@ def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None)
         "state_agreement_grpo_normalized",
         "state_xdomain_grpo",
         "state_xdomain_grpo_normalized",
+        "state_evidence_joint_grpo",
     }:
         extra_loss_kwargs["update_sketch"] = data.get("update_sketch", None)
         extra_loss_kwargs["state_index"] = data.get("state_index", None)
