@@ -54,6 +54,18 @@ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 DEFAULT_ROUTING_CACHE_SIZE = 10000
 
 
+def resolve_agent_tool_config_path(multi_turn_config: DictConfig, agent_name: str) -> str | None:
+    """Resolve an agent-specific tool config, falling back to the legacy path."""
+
+    tool_config_paths = multi_turn_config.get("tool_config_paths", None)
+    if tool_config_paths is not None:
+        agent_tool_config_path = tool_config_paths.get(agent_name, None)
+        if agent_tool_config_path:
+            return agent_tool_config_path
+
+    return multi_turn_config.get("tool_config_path", None)
+
+
 @ray.remote
 class GlobalRequestLoadBalancer:
     """Global sticky-session + in-flight load balancer shared by all AgentLoopWorkers."""

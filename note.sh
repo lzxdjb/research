@@ -980,3 +980,48 @@ SKIP_PIP_INSTALL=1 \
 STATE_PREDICTIVE_SEGMENT_BACKEND=torch \
 STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX=True \
 bash /mnt/data/HithinkOmniSSD/user_workspace/leizhengxing/research/run_script/demo_state_predictive_grpo.sh
+
+
+
+MIX_MULTIHOP_SAMPLES=8000 \
+MIX_ALFWORLD_SAMPLES=2000 \
+MIX_WEBSHOP_SAMPLES=2000 \
+REBUILD_MIXED_DATASET=1 \
+TRAIN_BATCH_SIZE=32 \
+PPO_MINI_BATCH_SIZE=32 \
+VAL_BATCH_SIZE=32 \
+ALFWORLD_SERVER_HOST=10.244.168.177 \
+WEBSHOP_SERVER_HOST=10.244.13.156 \
+ROLLOUT_N=8 \
+bash run_script/demo_mixed_webshop_alfworld_multihop_grpo_avg_pass_val.sh
+
+##### in nohup
+
+nohup bash -lc '
+MIX_MULTIHOP_SAMPLES=8000 \
+MIX_ALFWORLD_SAMPLES=2000 \
+MIX_WEBSHOP_SAMPLES=2000 \
+REBUILD_MIXED_DATASET=1 \
+TRAIN_BATCH_SIZE=32 \
+PPO_MINI_BATCH_SIZE=32 \
+VAL_BATCH_SIZE=32 \
+ALFWORLD_SERVER_HOST=10.244.168.177 \
+WEBSHOP_SERVER_HOST=10.244.13.156 \
+ROLLOUT_N=8 \
+bash run_script/demo_mixed_webshop_alfworld_multihop_grpo_avg_pass_val.sh
+' > /tmp/demo_mixed_webshop_alfworld_multihop_grpo_avg_pass_val.log 2>&1 &
+
+########
+
+python3 burn_gpu_smart.py &
+nohup bash run_script/start_digital_onboarding_4b_multirole_server.sh \
+  > /tmp/digital_onboarding_4b_server.log 2>&1 &
+
+echo $! > /tmp/digital_onboarding_4b_server.pid
+disown
+
+
+  pkill -KILL -f 'vllm' || true
+  pkill -KILL -f 'VLLM' || true
+  ray stop
+pgrep -f 'multiprocessing\.spawn.*spawn_main' | xargs -r kill -KILL

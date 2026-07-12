@@ -23,6 +23,7 @@ from verl.experimental.agent_loop.agent_loop import (
     AgentLoopBase,
     AgentLoopOutput,
     register,
+    resolve_agent_tool_config_path,
 )
 from verl.experimental.agent_loop.tool_parser import FunctionCall, ToolParser
 from verl.interactions.base import BaseInteraction
@@ -148,7 +149,7 @@ class HotpotQAAgentLoop(AgentLoopBase):
         self.prompt_length               = self.rollout_config.prompt_length
         self.response_length             = self.rollout_config.response_length
 
-        tool_config_path = mt.tool_config_path
+        tool_config_path = resolve_agent_tool_config_path(mt, "hotpot_qa_agent")
         tool_list = initialize_tools_from_config(tool_config_path) if tool_config_path else []
         self.tools = {t.name: t for t in tool_list}
 
