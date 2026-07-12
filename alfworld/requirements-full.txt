@@ -5,7 +5,7 @@ textworld[pddl]>=1.6.1
 torch
 torchvision
 tqdm
-werkzeug==2.0.3
+werkzeug==3.1.8
 
 h5py
 pycocotools
