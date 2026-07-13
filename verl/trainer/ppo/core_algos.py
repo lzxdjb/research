@@ -7469,7 +7469,7 @@ def _build_joint_segment_ppo_loss_mat(
         clip_ratio_high = clip_ratio
     clip_ratio_c = config.get("clip_ratio_c", 3.0) if hasattr(config, "get") else getattr(config, "clip_ratio_c", 3.0)
     if clip_ratio_c <= 1.0:
-        raise ValueError(f"state_evidence_joint_grpo requires clip_ratio_c > 1, got {clip_ratio_c}.")
+        raise ValueError(f"joint segment GRPO requires clip_ratio_c > 1, got {clip_ratio_c}.")
     max_abs_log_ratio = float(_config_get(config.policy_loss, "state_joint_max_abs_log_ratio", 20.0))
 
     valid_mask = response_mask.bool() & (state_index >= 0)
@@ -7817,6 +7817,8 @@ _STATE_PREDICTIVE_LOSS_MODES = {
     "state_agreement_grpo_normalized",
     "state_xdomain_grpo",
     "state_xdomain_grpo_normalized",
+    "state_agreement_joint_grpo",
+    "state_xdomain_joint_grpo",
 }
 
 _STATE_EVIDENCE_LOSS_MODES = {
@@ -7828,6 +7830,8 @@ _STATE_AGREEMENT_LOSS_MODES = {
     "state_agreement_grpo_normalized",
     "state_xdomain_grpo",
     "state_xdomain_grpo_normalized",
+    "state_agreement_joint_grpo",
+    "state_xdomain_joint_grpo",
 }
 
 
@@ -9074,6 +9078,80 @@ def compute_policy_loss_state_predictive_grpo(
 
     metrics.update(state_metrics)
     metrics["actor/state_predictive/used_update_sketch"] = float(used_update_sketch)
+    return loss, metrics
+
+
+@register_policy_loss("state_agreement_joint_grpo")
+@register_policy_loss("state_xdomain_joint_grpo")
+def compute_policy_loss_state_agreement_joint_grpo(
+    old_log_prob: torch.Tensor,
+    log_prob: torch.Tensor,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    loss_agg_mode: str = "seq-mean-token-sum",
+    config=None,
+    rollout_is_weights=None,
+    update_sketch: Optional[torch.Tensor] = None,
+    state_index: Optional[torch.Tensor] = None,
+    **kwargs,
+) -> tuple[torch.Tensor, dict]:
+    """Agreement-discovered states with true joint segment PPO ratios."""
+    assert config is not None
+    if _state_predictive_objective(config) != "agreement":
+        raise ValueError(
+            "state_agreement_joint_grpo requires state_predictive_objective=agreement; "
+            "remove the override or set it explicitly."
+        )
+
+    token_losses, _ = _compute_token_level_grpo_losses(
+        old_log_prob, log_prob, advantages, response_mask, config, rollout_is_weights
+    )
+    features, used_update_sketch = _state_predictive_build_features(
+        token_losses=token_losses,
+        advantages=advantages,
+        response_mask=response_mask,
+        config=config,
+        update_sketch=update_sketch,
+    )
+
+    if state_index is not None:
+        state_index = state_index.to(device=log_prob.device, dtype=torch.int32)
+        state_metrics = _state_predictive_metrics_from_index(state_index, response_mask, config)
+    else:
+        state_index_start = time.perf_counter()
+        segment_backend = str(_config_get(config.policy_loss, "state_predictive_segment_backend", "numpy")).lower()
+        if segment_backend in {"torch", "gpu", "cuda"}:
+            state_index, state_metrics = _build_state_predictive_index_torch(features, response_mask, config)
+        else:
+            state_index, state_metrics = _build_state_predictive_index(features, response_mask, config)
+            state_metrics["actor/state_predictive/segment_backend_torch"] = 0.0
+        state_metrics["actor/state_predictive/build_index_seconds"] = time.perf_counter() - state_index_start
+        state_index = state_index.to(device=log_prob.device, dtype=torch.int32)
+
+    loss_mat, state_counts, metrics = _build_joint_segment_ppo_loss_mat(
+        old_log_prob=old_log_prob,
+        log_prob=log_prob,
+        advantages=advantages,
+        response_mask=response_mask,
+        state_index=state_index,
+        config=config,
+        rollout_is_weights=rollout_is_weights,
+    )
+    loss = agg_loss(
+        loss_mat=loss_mat,
+        loss_mask=response_mask,
+        loss_agg_mode="seq-mean-token-sum",
+        **get_agg_loss_kwargs(config.global_batch_info),
+    )
+
+    seq_mask = (response_mask.float().sum(-1) > 0).float()
+    seq_denom = seq_mask.sum().clamp(min=1.0)
+    metrics["actor/state_agreement_joint/loss_state_count_mean"] = (
+        (state_counts * seq_mask).sum() / seq_denom
+    ).detach().item()
+    metrics["actor/state_agreement_joint/used_update_sketch"] = float(used_update_sketch)
+    metrics["actor/state_agreement_joint/joint_ratio"] = 1.0
+    metrics.update(state_metrics)
     return loss, metrics
 
 

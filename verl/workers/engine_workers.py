@@ -694,6 +694,8 @@ class TrainingWorker(Worker, DistProfilerExtension):
             "state_xdomain_grpo",
             "state_xdomain_grpo_normalized",
             "state_evidence_joint_grpo",
+            "state_agreement_joint_grpo",
+            "state_xdomain_joint_grpo",
         }
         if loss_mode not in state_predictive_modes:
             return

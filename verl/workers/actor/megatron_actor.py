@@ -413,6 +413,8 @@ class MegatronPPOActor(BasePPOActor):
             "state_xdomain_grpo",
             "state_xdomain_grpo_normalized",
             "state_evidence_joint_grpo",
+            "state_agreement_joint_grpo",
+            "state_xdomain_joint_grpo",
         }
         if loss_mode in state_predictive_modes and "update_sketch" in data.batch.keys():
             select_keys.append("update_sketch")
