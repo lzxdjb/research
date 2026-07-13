@@ -709,6 +709,14 @@ class AlgoConfig(BaseConfig):
     lpo_adaptive_grid_size: int = 64
     lpo_adaptive_max_logit_gap: float = 20.0
 
+    # GRPO-MaxRL bridge: tilts standardized rewards by a, chooses a by
+    # maximizing reward gain times relative ESS, and rescales by 1-exp(-a) so
+    # the small-a and large-a limits recover GRPO and MaxRL respectively.
+    gmb_grid_size: int = 64
+    gmb_max_logit_gap: float = 20.0
+    gmb_refine_steps: int = 16
+    gmb_eps: float = 1e-8
+
     # Temperature used in the contrastive MI proxy.
     mi_reward_temperature: float = 1.0
 

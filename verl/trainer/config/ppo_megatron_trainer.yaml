@@ -141,6 +141,10 @@ algorithm:
   lpo_eps: 1e-8
   lpo_adaptive_grid_size: 32
   lpo_adaptive_max_logit_gap: 20.0
+  gmb_grid_size: 64
+  gmb_max_logit_gap: 20.0
+  gmb_refine_steps: 16
+  gmb_eps: 1e-8
   latent_factor_k: 8
   latent_factor_hidden_dim: 32
   latent_factor_aux_steps: 8
