@@ -1,0 +1,468 @@
+{
+  "run": {
+    "id": "s0mzclga",
+    "name": "vanilla_norm_matched_alpha_grpo_9B",
+    "state": "running",
+    "url": "https://wandb.ai/zhengxinglei539-easynet/wiki_9B/runs/s0mzclga",
+    "created_at": "2026-07-13T07:17:04Z",
+    "history_rows": 393,
+    "last_global_step": 393
+  },
+  "proxy_formula": "1 - 2*pi(y) + sum_v pi(v)^2 = ||e_y - pi||_2^2",
+  "full_sum_pi_squared_proxy_values": [
+    1.0
+  ],
+  "signal_strength_identity_check": {
+    "paired_rows": 393,
+    "max_absolute_error_vs_grad_norm_squared": 0.0
+  },
+  "largest_grad_norm_steps": [
+    {
+      "training/global_step": 252,
+      "actor/grad_norm": 2.056249220827645,
+      "actor/intentional_score_norm_mean": 0.270526364678517
+    },
+    {
+      "training/global_step": 211,
+      "actor/grad_norm": 0.5700314756955226,
+      "actor/intentional_score_norm_mean": 0.25050417671445757
+    },
+    {
+      "training/global_step": 23,
+      "actor/grad_norm": 0.4614547478197127,
+      "actor/intentional_score_norm_mean": 0.1137096262536943
+    },
+    {
+      "training/global_step": 287,
+      "actor/grad_norm": 0.44860183814824833,
+      "actor/intentional_score_norm_mean": 0.2778117614216171
+    },
+    {
+      "training/global_step": 209,
+      "actor/grad_norm": 0.4091469835854757,
+      "actor/intentional_score_norm_mean": 0.1915150737913791
+    }
+  ],
+  "score_norm_proxy": {
+    "proxy_key": "actor/intentional_score_norm_mean",
+    "paired_steps": 393,
+    "step_range": [
+      1,
+      393
+    ],
+    "pearson_sqrt_proxy_vs_grad": -0.0012445059599555915,
+    "pearson_95pct_bootstrap_ci": [
+      -0.2161653650666257,
+      0.1099809182995719
+    ],
+    "spearman_sqrt_proxy_vs_grad": -0.13645166672861264,
+    "pearson_first_differences": 0.08158326195219258,
+    "pearson_after_linear_step_detrending": -0.05369287056615875,
+    "trimmed_sensitivity": {
+      "drop_top_5pct_grad_norm": {
+        "rows": 373,
+        "grad_norm_cutoff": 0.26936398357867186,
+        "pearson_sqrt_proxy_vs_grad": -0.23296881612753162
+      },
+      "drop_top_1pct_grad_norm": {
+        "rows": 389,
+        "grad_norm_cutoff": 0.4123033719504969,
+        "pearson_sqrt_proxy_vs_grad": -0.154817033577567
+      }
+    },
+    "temporal_calibration": {
+      "calibration_rows": 196,
+      "evaluation_rows": 197,
+      "positive_scale": 0.29737089292325397,
+      "evaluation_errors": {
+        "mae": 0.06023314769419212,
+        "rmse": 0.15583233689442935,
+        "nrmse_by_mean_grad": 0.9795764175919968,
+        "mape": 0.32587630468747647,
+        "median_absolute_percentage_error": 0.2776046868882273,
+        "bias": -0.01875438487338845
+      },
+      "unconstrained_affine_intercept": 0.40797303651258426,
+      "unconstrained_affine_slope": -0.676958029776013,
+      "unconstrained_affine_evaluation_errors": {
+        "mae": 0.07533868218632472,
+        "rmse": 0.17219692587161026,
+        "nrmse_by_mean_grad": 1.082445730631256,
+        "mape": 0.37213595275229383,
+        "median_absolute_percentage_error": 0.36002485235287496,
+        "bias": -0.07055943013640305
+      }
+    },
+    "ranges": {
+      "proxy": [
+        0.10333235617144965,
+        0.31488742868532427
+      ],
+      "sqrt_proxy": [
+        0.3214535054583316,
+        0.5611483125567823
+      ],
+      "grad_norm": [
+        0.03578666215573553,
+        2.056249220827645
+      ]
+    }
+  },
+  "extra_proxy_results": {
+    "variance_proxy/expected_w": {
+      "proxy_key": "variance_proxy/expected_w",
+      "paired_steps": 393,
+      "step_range": [
+        1,
+        393
+      ],
+      "pearson_sqrt_proxy_vs_grad": -0.14465473482254754,
+      "pearson_95pct_bootstrap_ci": [
+        -0.35509549392272227,
+        -0.06303533752026048
+      ],
+      "spearman_sqrt_proxy_vs_grad": -0.3206227467156119,
+      "pearson_first_differences": -0.0736547665890759,
+      "pearson_after_linear_step_detrending": -0.1680711053905202,
+      "trimmed_sensitivity": {
+        "drop_top_5pct_grad_norm": {
+          "rows": 373,
+          "grad_norm_cutoff": 0.26936398357867186,
+          "pearson_sqrt_proxy_vs_grad": -0.37776572856970747
+        },
+        "drop_top_1pct_grad_norm": {
+          "rows": 389,
+          "grad_norm_cutoff": 0.4123033719504969,
+          "pearson_sqrt_proxy_vs_grad": -0.29266955269938494
+        }
+      },
+      "temporal_calibration": {
+        "calibration_rows": 196,
+        "evaluation_rows": 197,
+        "positive_scale": 0.005435680742806625,
+        "evaluation_errors": {
+          "mae": 0.05961400506803023,
+          "rmse": 0.15974625136402112,
+          "nrmse_by_mean_grad": 1.00417964431176,
+          "mape": 0.2908775713073458,
+          "median_absolute_percentage_error": 0.2447128512079634,
+          "bias": -0.033259459349346744
+        },
+        "unconstrained_affine_intercept": 0.2861850746887817,
+        "unconstrained_affine_slope": -0.007237509522392966,
+        "unconstrained_affine_evaluation_errors": {
+          "mae": 0.05737929334605364,
+          "rmse": 0.15946227718426398,
+          "nrmse_by_mean_grad": 1.0023945564715926,
+          "mape": 0.2679626445299651,
+          "median_absolute_percentage_error": 0.221274374043612,
+          "bias": -0.04042581730411858
+        }
+      },
+      "ranges": {
+        "proxy": [
+          168.59527587890625,
+          977.4077758789062
+        ],
+        "sqrt_proxy": [
+          12.98442435685565,
+          31.26352148877196
+        ],
+        "grad_norm": [
+          0.03578666215573553,
+          2.056249220827645
+        ]
+      }
+    },
+    "variance_proxy/proxy2_total_power": {
+      "proxy_key": "variance_proxy/proxy2_total_power",
+      "paired_steps": 393,
+      "step_range": [
+        1,
+        393
+      ],
+      "pearson_sqrt_proxy_vs_grad": 0.07134629871734174,
+      "pearson_95pct_bootstrap_ci": [
+        0.011162999233734022,
+        0.19755448337547651
+      ],
+      "spearman_sqrt_proxy_vs_grad": 0.1782282215788629,
+      "pearson_first_differences": 0.0016994866904139364,
+      "pearson_after_linear_step_detrending": 0.04568974880460822,
+      "trimmed_sensitivity": {
+        "drop_top_5pct_grad_norm": {
+          "rows": 373,
+          "grad_norm_cutoff": 0.26936398357867186,
+          "pearson_sqrt_proxy_vs_grad": 0.1346326555058595
+        },
+        "drop_top_1pct_grad_norm": {
+          "rows": 389,
+          "grad_norm_cutoff": 0.4123033719504969,
+          "pearson_sqrt_proxy_vs_grad": 0.13031997671640702
+        }
+      },
+      "temporal_calibration": {
+        "calibration_rows": 196,
+        "evaluation_rows": 197,
+        "positive_scale": 0.00952373656587729,
+        "evaluation_errors": {
+          "mae": 0.0604598798951152,
+          "rmse": 0.15689040255744605,
+          "nrmse_by_mean_grad": 0.9862275157684758,
+          "mape": 0.3241950486053703,
+          "median_absolute_percentage_error": 0.28811508024969695,
+          "bias": -0.015184346261729069
+        },
+        "unconstrained_affine_intercept": 0.13117461345274184,
+        "unconstrained_affine_slope": -0.0003266226106386333,
+        "unconstrained_affine_evaluation_errors": {
+          "mae": 0.05588386779368105,
+          "rmse": 0.15814525464383922,
+          "nrmse_by_mean_grad": 0.9941156315209182,
+          "mape": 0.26552208981195996,
+          "median_absolute_percentage_error": 0.22846435342921093,
+          "bias": -0.032841773771601544
+        }
+      },
+      "ranges": {
+        "proxy": [
+          24.8352108001709,
+          546.9509887695312
+        ],
+        "sqrt_proxy": [
+          4.9834938346676925,
+          23.386983319135695
+        ],
+        "grad_norm": [
+          0.03578666215573553,
+          2.056249220827645
+        ]
+      }
+    }
+  },
+  "context_pearson_correlations": {
+    "actor/intentional_score_norm_mean": {
+      "actor/intentional_score_norm_mean": 1.0,
+      "actor/grad_norm": 0.013540951054980738,
+      "response_length/mean": -0.1365171720759082,
+      "num_turns/mean": -0.07339928821962372,
+      "critic/advantages/mean": -0.027543814979890367,
+      "critic/advantages/max": -0.007966491109173966,
+      "actor/intentional_alpha_scale": -0.41765751157128866,
+      "actor/intentional_projection_cos": 0.6172835533292125,
+      "actor/intentional_target_error": -0.4060481900490239,
+      "actor/intentional_norm_error": -0.09669118253287962,
+      "variance_proxy/expected_w": 0.6502050048839366,
+      "variance_proxy/proxy1_signal_strength": 0.08014345932950497,
+      "variance_proxy/proxy2_total_power": 0.5482483984063766
+    },
+    "actor/grad_norm": {
+      "actor/intentional_score_norm_mean": 0.013540951054980738,
+      "actor/grad_norm": 1.0,
+      "response_length/mean": -0.17604935935277596,
+      "num_turns/mean": 0.04388493129580601,
+      "critic/advantages/mean": -0.1194014323236658,
+      "critic/advantages/max": 0.04268289088866872,
+      "actor/intentional_alpha_scale": -0.1280663073242289,
+      "actor/intentional_projection_cos": -0.016539420494044988,
+      "actor/intentional_target_error": -0.04512033844132065,
+      "actor/intentional_norm_error": -0.08589273676749973,
+      "variance_proxy/expected_w": -0.14463074741941212,
+      "variance_proxy/proxy1_signal_strength": 0.8912534776185832,
+      "variance_proxy/proxy2_total_power": 0.06172560849562102
+    },
+    "response_length/mean": {
+      "actor/intentional_score_norm_mean": -0.1365171720759082,
+      "actor/grad_norm": -0.17604935935277596,
+      "response_length/mean": 1.0,
+      "num_turns/mean": 0.2276908911285605,
+      "critic/advantages/mean": -0.024491562354427534,
+      "critic/advantages/max": 0.11242119145044786,
+      "actor/intentional_alpha_scale": 0.5406481756286977,
+      "actor/intentional_projection_cos": 0.20139651105271714,
+      "actor/intentional_target_error": 0.48300053410888966,
+      "actor/intentional_norm_error": 0.35808895081777453,
+      "variance_proxy/expected_w": 0.6074996677593177,
+      "variance_proxy/proxy1_signal_strength": -0.06934773388179849,
+      "variance_proxy/proxy2_total_power": 0.20841445143043072
+    },
+    "num_turns/mean": {
+      "actor/intentional_score_norm_mean": -0.07339928821962372,
+      "actor/grad_norm": 0.04388493129580601,
+      "response_length/mean": 0.2276908911285605,
+      "num_turns/mean": 1.0,
+      "critic/advantages/mean": -0.03399820339391009,
+      "critic/advantages/max": -0.009931919090376688,
+      "actor/intentional_alpha_scale": 0.23212573402407824,
+      "actor/intentional_projection_cos": 0.09299551022616928,
+      "actor/intentional_target_error": 0.14978220496258496,
+      "actor/intentional_norm_error": 0.13491024282439143,
+      "variance_proxy/expected_w": 0.043241876753707754,
+      "variance_proxy/proxy1_signal_strength": 0.08039601240819078,
+      "variance_proxy/proxy2_total_power": -0.029893875455830065
+    },
+    "critic/advantages/mean": {
+      "actor/intentional_score_norm_mean": -0.027543814979890367,
+      "actor/grad_norm": -0.1194014323236658,
+      "response_length/mean": -0.024491562354427534,
+      "num_turns/mean": -0.03399820339391009,
+      "critic/advantages/mean": 1.0,
+      "critic/advantages/max": 0.02463043486415221,
+      "actor/intentional_alpha_scale": 0.030329708526734396,
+      "actor/intentional_projection_cos": -0.13876821909054635,
+      "actor/intentional_target_error": -0.09018983745765448,
+      "actor/intentional_norm_error": -0.10096306054282529,
+      "variance_proxy/expected_w": -0.0486619061140494,
+      "variance_proxy/proxy1_signal_strength": -0.043496196972068815,
+      "variance_proxy/proxy2_total_power": -0.2791690402129233
+    },
+    "critic/advantages/max": {
+      "actor/intentional_score_norm_mean": -0.007966491109173966,
+      "actor/grad_norm": 0.04268289088866872,
+      "response_length/mean": 0.11242119145044786,
+      "num_turns/mean": -0.009931919090376688,
+      "critic/advantages/mean": 0.02463043486415221,
+      "critic/advantages/max": 1.0,
+      "actor/intentional_alpha_scale": 0.22107460951809124,
+      "actor/intentional_projection_cos": 0.11270965970200378,
+      "actor/intentional_target_error": 0.16905897752315582,
+      "actor/intentional_norm_error": 0.10082419693776731,
+      "variance_proxy/expected_w": 0.057881965016960274,
+      "variance_proxy/proxy1_signal_strength": 0.02868611947441036,
+      "variance_proxy/proxy2_total_power": 0.006106179334744019
+    },
+    "actor/intentional_alpha_scale": {
+      "actor/intentional_score_norm_mean": -0.41765751157128866,
+      "actor/grad_norm": -0.1280663073242289,
+      "response_length/mean": 0.5406481756286977,
+      "num_turns/mean": 0.23212573402407824,
+      "critic/advantages/mean": 0.030329708526734396,
+      "critic/advantages/max": 0.22107460951809124,
+      "actor/intentional_alpha_scale": 1.0,
+      "actor/intentional_projection_cos": 0.16513049298834526,
+      "actor/intentional_target_error": 0.8337219299905068,
+      "actor/intentional_norm_error": 0.5805893133072592,
+      "variance_proxy/expected_w": 0.0002849287379917307,
+      "variance_proxy/proxy1_signal_strength": -0.06584660276313363,
+      "variance_proxy/proxy2_total_power": -0.26364121163938
+    },
+    "actor/intentional_projection_cos": {
+      "actor/intentional_score_norm_mean": 0.6172835533292125,
+      "actor/grad_norm": -0.016539420494044988,
+      "response_length/mean": 0.20139651105271714,
+      "num_turns/mean": 0.09299551022616928,
+      "critic/advantages/mean": -0.13876821909054635,
+      "critic/advantages/max": 0.11270965970200378,
+      "actor/intentional_alpha_scale": 0.16513049298834526,
+      "actor/intentional_projection_cos": 1.0,
+      "actor/intentional_target_error": 0.31961117484552726,
+      "actor/intentional_norm_error": 0.4492465529656288,
+      "variance_proxy/expected_w": 0.6071256049944184,
+      "variance_proxy/proxy1_signal_strength": 0.027257569942463145,
+      "variance_proxy/proxy2_total_power": 0.6751431728591157
+    },
+    "actor/intentional_target_error": {
+      "actor/intentional_score_norm_mean": -0.4060481900490239,
+      "actor/grad_norm": -0.04512033844132065,
+      "response_length/mean": 0.48300053410888966,
+      "num_turns/mean": 0.14978220496258496,
+      "critic/advantages/mean": -0.09018983745765448,
+      "critic/advantages/max": 0.16905897752315582,
+      "actor/intentional_alpha_scale": 0.8337219299905068,
+      "actor/intentional_projection_cos": 0.31961117484552726,
+      "actor/intentional_target_error": 1.0,
+      "actor/intentional_norm_error": 0.6411846405770908,
+      "variance_proxy/expected_w": -0.008335901340717707,
+      "variance_proxy/proxy1_signal_strength": -0.040952571739072255,
+      "variance_proxy/proxy2_total_power": 0.007065875424770994
+    },
+    "actor/intentional_norm_error": {
+      "actor/intentional_score_norm_mean": -0.09669118253287962,
+      "actor/grad_norm": -0.08589273676749973,
+      "response_length/mean": 0.35808895081777453,
+      "num_turns/mean": 0.13491024282439143,
+      "critic/advantages/mean": -0.10096306054282529,
+      "critic/advantages/max": 0.10082419693776731,
+      "actor/intentional_alpha_scale": 0.5805893133072592,
+      "actor/intentional_projection_cos": 0.4492465529656288,
+      "actor/intentional_target_error": 0.6411846405770908,
+      "actor/intentional_norm_error": 1.0,
+      "variance_proxy/expected_w": 0.1519088618368186,
+      "variance_proxy/proxy1_signal_strength": -0.026630424542985115,
+      "variance_proxy/proxy2_total_power": 0.1303442262486892
+    },
+    "variance_proxy/expected_w": {
+      "actor/intentional_score_norm_mean": 0.6502050048839366,
+      "actor/grad_norm": -0.14463074741941212,
+      "response_length/mean": 0.6074996677593177,
+      "num_turns/mean": 0.043241876753707754,
+      "critic/advantages/mean": -0.0486619061140494,
+      "critic/advantages/max": 0.057881965016960274,
+      "actor/intentional_alpha_scale": 0.0002849287379917307,
+      "actor/intentional_projection_cos": 0.6071256049944184,
+      "actor/intentional_target_error": -0.008335901340717707,
+      "actor/intentional_norm_error": 0.1519088618368186,
+      "variance_proxy/expected_w": 1.0,
+      "variance_proxy/proxy1_signal_strength": -0.01810560654698602,
+      "variance_proxy/proxy2_total_power": 0.6420302705839818
+    },
+    "variance_proxy/proxy1_signal_strength": {
+      "actor/intentional_score_norm_mean": 0.08014345932950497,
+      "actor/grad_norm": 0.8912534776185832,
+      "response_length/mean": -0.06934773388179849,
+      "num_turns/mean": 0.08039601240819078,
+      "critic/advantages/mean": -0.043496196972068815,
+      "critic/advantages/max": 0.02868611947441036,
+      "actor/intentional_alpha_scale": -0.06584660276313363,
+      "actor/intentional_projection_cos": 0.027257569942463145,
+      "actor/intentional_target_error": -0.040952571739072255,
+      "actor/intentional_norm_error": -0.026630424542985115,
+      "variance_proxy/expected_w": -0.01810560654698602,
+      "variance_proxy/proxy1_signal_strength": 1.0,
+      "variance_proxy/proxy2_total_power": 0.009426181603490838
+    },
+    "variance_proxy/proxy2_total_power": {
+      "actor/intentional_score_norm_mean": 0.5482483984063766,
+      "actor/grad_norm": 0.06172560849562102,
+      "response_length/mean": 0.20841445143043072,
+      "num_turns/mean": -0.029893875455830065,
+      "critic/advantages/mean": -0.2791690402129233,
+      "critic/advantages/max": 0.006106179334744019,
+      "actor/intentional_alpha_scale": -0.26364121163938,
+      "actor/intentional_projection_cos": 0.6751431728591157,
+      "actor/intentional_target_error": 0.007065875424770994,
+      "actor/intentional_norm_error": 0.1303442262486892,
+      "variance_proxy/expected_w": 0.6420302705839818,
+      "variance_proxy/proxy1_signal_strength": 0.009426181603490838,
+      "variance_proxy/proxy2_total_power": 1.0
+    }
+  },
+  "candidate_metric_keys": [
+    "actor/grad_norm",
+    "actor/intentional_alpha_norm_scale",
+    "actor/intentional_alpha_projection_scale",
+    "actor/intentional_alpha_scale",
+    "actor/intentional_eta",
+    "actor/intentional_norm_error",
+    "actor/intentional_pred_abs_mean",
+    "actor/intentional_projection_cos",
+    "actor/intentional_ratio_mean",
+    "actor/intentional_score_norm_mean",
+    "actor/intentional_target_abs_mean",
+    "actor/intentional_target_clipped_frac",
+    "actor/intentional_target_error",
+    "actor/intentional_used_sum_pi_squared",
+    "variance_proxy/expected_a_squared",
+    "variance_proxy/expected_w",
+    "variance_proxy/proxy1_signal_strength",
+    "variance_proxy/proxy2_total_power",
+    "variance_proxy/proxy3_pure_noise"
+  ],
+  "interpretation": [
+    "The score proxy is a squared norm in vocabulary-logit space, while actor/grad_norm is a norm in parameter space after model Jacobians and batch-vector aggregation.",
+    "A positive scalar calibration is diagnostic only; its error is not an absolute oracle approximation error because the two logged metrics are not the same mathematical quantity.",
+    "actor/intentional_norm_error is near zero by construction in proxy movement space and does not validate parameter-gradient accuracy.",
+    "actor/grad_norm is reduced as the mean of PPO mini-batch gradient norms within a global step; it is not the norm of one full-rollout-batch gradient vector.",
+    "Per-token or per-sample parameter-gradient norms were not logged, so the paper's direct proxy-versus-oracle error is not identifiable from this run."
+  ]
+}

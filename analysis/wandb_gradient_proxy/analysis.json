@@ -1,0 +1,106 @@
+{
+  "turn_proxy": {
+    "proxy_key": "critic/value_loss_weight/raw_mean",
+    "paired_steps": 226,
+    "pearson_proxy_vs_grad": -0.8130878154737917,
+    "pearson_95pct_bootstrap_ci": [
+      -0.8522739694869269,
+      -0.7667846714190615
+    ],
+    "spearman_proxy_vs_grad": -0.6890434421010228,
+    "pearson_first_differences": -0.11875384225268756,
+    "pearson_after_linear_step_detrending": -0.5903221502797651,
+    "positive_scale_on_sqrt_proxy": 1.119515825721271,
+    "positive_scale_errors": {
+      "mae": 0.2383384283537566,
+      "rmse": 0.3040737490678384,
+      "nrmse_by_mean_grad": 0.2553983506884151,
+      "mape": 0.239205830621751,
+      "median_absolute_percentage_error": 0.1550968576552813,
+      "r2": -0.37315964780476785
+    },
+    "affine_intercept": 5.9636200894143645,
+    "affine_slope_on_sqrt_proxy": -4.532902167812815,
+    "affine_errors": {
+      "mae": 0.11819442528823261,
+      "rmse": 0.14935384012942562,
+      "nrmse_by_mean_grad": 0.12544563466912922,
+      "mape": 0.10396121796932675,
+      "median_absolute_percentage_error": 0.08615996830240011,
+      "r2": 0.6687194320469363
+    }
+  },
+  "token_proxy": {
+    "proxy_key": "critic/value_loss_weight/token_score_norm_mean",
+    "paired_steps": 226,
+    "pearson_proxy_vs_grad": -0.8437735196932774,
+    "pearson_95pct_bootstrap_ci": [
+      -0.8799926211042061,
+      -0.7957139519620025
+    ],
+    "spearman_proxy_vs_grad": -0.7441617610749418,
+    "pearson_first_differences": -0.21404669330884998,
+    "pearson_after_linear_step_detrending": -0.5766026545106931,
+    "positive_scale_on_sqrt_proxy": 6.579528188175017,
+    "positive_scale_errors": {
+      "mae": 0.28285763149072446,
+      "rmse": 0.353249513104242,
+      "nrmse_by_mean_grad": 0.29670217605065696,
+      "mape": 0.2805577818890146,
+      "median_absolute_percentage_error": 0.19536437364961734,
+      "r2": -0.853217185448705
+    },
+    "affine_intercept": 3.614659424885285,
+    "affine_slope_on_sqrt_proxy": -13.731491974063745,
+    "affine_errors": {
+      "mae": 0.11186584534335636,
+      "rmse": 0.14029554256354718,
+      "nrmse_by_mean_grad": 0.11783736770934602,
+      "mape": 0.09385694767473858,
+      "median_absolute_percentage_error": 0.07825107675781154,
+      "r2": 0.7076851215471796
+    }
+  },
+  "context_pearson_correlations": {
+    "critic/value_loss_weight/raw_mean": {
+      "critic/value_loss_weight/raw_mean": 1.0,
+      "critic/value_loss_weight/token_score_norm_mean": 0.9046505981802483,
+      "actor/grad_norm": -0.8130878154737915,
+      "response_length/mean": 0.9667906567880207,
+      "num_turns/mean": 0.9830336198584161
+    },
+    "critic/value_loss_weight/token_score_norm_mean": {
+      "critic/value_loss_weight/raw_mean": 0.9046505981802483,
+      "critic/value_loss_weight/token_score_norm_mean": 1.0,
+      "actor/grad_norm": -0.8437735196932773,
+      "response_length/mean": 0.9330657463617196,
+      "num_turns/mean": 0.9048033969751655
+    },
+    "actor/grad_norm": {
+      "critic/value_loss_weight/raw_mean": -0.8130878154737915,
+      "critic/value_loss_weight/token_score_norm_mean": -0.8437735196932773,
+      "actor/grad_norm": 1.0,
+      "response_length/mean": -0.8505101203139881,
+      "num_turns/mean": -0.8261629890097084
+    },
+    "response_length/mean": {
+      "critic/value_loss_weight/raw_mean": 0.9667906567880207,
+      "critic/value_loss_weight/token_score_norm_mean": 0.9330657463617196,
+      "actor/grad_norm": -0.8505101203139881,
+      "response_length/mean": 1.0,
+      "num_turns/mean": 0.9719346935607951
+    },
+    "num_turns/mean": {
+      "critic/value_loss_weight/raw_mean": 0.9830336198584161,
+      "critic/value_loss_weight/token_score_norm_mean": 0.9048033969751655,
+      "actor/grad_norm": -0.8261629890097084,
+      "response_length/mean": 0.9719346935607951,
+      "num_turns/mean": 1.0
+    }
+  },
+  "limitations": [
+    "This run used turn_suffix_score_norm, not turn_score_norm. Its raw_mean is a token-weighted aggregation after broadcasting each turn-suffix S_i to tokens; it is not a per-turn W_n series.",
+    "actor/grad_norm is the pre-clipping parameter-gradient norm of the full batch PPO objective, which also depends on advantages, PPO ratios, KL loss, model Jacobians, and batch aggregation.",
+    "The run did not log variance_proxy/expected_w or per-sample/per-turn parameter-gradient norms, so absolute oracle-proxy error is not identifiable from this history."
+  ]
+}

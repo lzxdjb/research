@@ -1,0 +1,43 @@
+[
+  {
+    "id": "9z0osom2",
+    "name": "wiki_turn_ppo_geo_critic_turn_suffix_wi_turn_level_value",
+    "state": "crashed",
+    "url": "https://wandb.ai/zhengxinglei539-easynet/wiki/runs/9z0osom2",
+    "created_at": "2026-05-15T02:56:02Z",
+    "candidate_summary_keys": [
+      "actor/grad_norm",
+      "critic/grad_norm",
+      "critic/value_loss_weight/clip_max",
+      "critic/value_loss_weight/clip_min",
+      "critic/value_loss_weight/clipped_mean",
+      "critic/value_loss_weight/max",
+      "critic/value_loss_weight/mean",
+      "critic/value_loss_weight/mode_is_suffix_score_norm",
+      "critic/value_loss_weight/mode_is_token_score_norm",
+      "critic/value_loss_weight/mode_is_turn_score_norm",
+      "critic/value_loss_weight/mode_is_turn_suffix_score_norm",
+      "critic/value_loss_weight/raw_mean",
+      "critic/value_loss_weight/suffix_alpha",
+      "critic/value_loss_weight/suffix_rho",
+      "critic/value_loss_weight/token_score_norm_mean",
+      "prompt_length/clip_ratio",
+      "prompt_length/max",
+      "prompt_length/mean",
+      "prompt_length/min",
+      "response_length/clip_ratio",
+      "response_length/max",
+      "response_length/mean",
+      "response_length/min",
+      "response_length_non_aborted/clip_ratio",
+      "response_length_non_aborted/max",
+      "response_length_non_aborted/mean",
+      "response_length_non_aborted/min",
+      "timing_s/agent_loop/slowest/prompt_length",
+      "timing_s/agent_loop/slowest/response_length",
+      "timing_s/update_weights"
+    ],
+    "history_rows": 226,
+    "history_path": "analysis/wandb_gradient_proxy/9z0osom2_history.csv"
+  }
+]

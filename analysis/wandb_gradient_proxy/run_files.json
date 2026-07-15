@@ -1,0 +1,45 @@
+{
+  "run": [
+    "zhengxinglei539-easynet",
+    "wiki",
+    "9z0osom2"
+  ],
+  "files": [
+    {
+      "name": "artifact/2856379917/wandb_manifest.json",
+      "size": 0,
+      "url": "https://api.wandb.ai/files/zhengxinglei539-easynet/wiki/9z0osom2/artifact/2856379917/wandb_manifest.json"
+    },
+    {
+      "name": "artifact/2856380874/wandb_manifest.json",
+      "size": 0,
+      "url": "https://api.wandb.ai/files/zhengxinglei539-easynet/wiki/9z0osom2/artifact/2856380874/wandb_manifest.json"
+    },
+    {
+      "name": "requirements.txt",
+      "size": 6279,
+      "url": "https://api.wandb.ai/files/zhengxinglei539-easynet/wiki/9z0osom2/requirements.txt"
+    },
+    {
+      "name": "wandb-metadata.json",
+      "size": 3432,
+      "url": "https://api.wandb.ai/files/zhengxinglei539-easynet/wiki/9z0osom2/wandb-metadata.json"
+    }
+  ],
+  "logged_artifacts": [
+    {
+      "name": "run-9z0osom2-events:v0",
+      "type": "wandb-events",
+      "version": "v0",
+      "size": 1694945,
+      "download_path": "analysis/wandb_gradient_proxy/artifacts/run-9z0osom2-events-v0"
+    },
+    {
+      "name": "run-9z0osom2-history:v0",
+      "type": "wandb-history",
+      "version": "v0",
+      "size": 147276,
+      "download_path": "analysis/wandb_gradient_proxy/artifacts/run-9z0osom2-history-v0"
+    }
+  ]
+}

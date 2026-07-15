@@ -5631,6 +5631,7 @@ def compute_maxrl_outcome_advantage(
     epsilon: float = 1e-6,
     norm_adv_by_std_in_grpo: bool = True,  # kept for API compat, unused
     config: Optional[AlgoConfig] = None,
+    **kwargs,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Compute outcome-level MaxRL advantages.
