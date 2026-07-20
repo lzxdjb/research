@@ -3135,17 +3135,21 @@ def compute_rewards(token_level_scores, old_log_prob, ref_log_prob, kl_ratio):
     return token_level_scores - kl * kl_ratio
 
 
-# Add this small helper near agg_loss or in the same utils file
-_AGG_LOSS_KEYS = frozenset({
-    "dp_size",
-    "batch_num_tokens",
-    "global_batch_size",
-    "loss_scale_factor",
-})
+# Only distributed aggregation metadata belongs in agg_loss kwargs.
+_AGG_LOSS_KEYS = frozenset(
+    {
+        "dp_size",
+        "batch_num_tokens",
+        "global_batch_size",
+        "loss_scale_factor",
+    }
+)
+
 
 def get_agg_loss_kwargs(global_batch_info: dict) -> dict:
     """Filter global_batch_info to only keys accepted by agg_loss."""
     return {k: v for k, v in global_batch_info.items() if k in _AGG_LOSS_KEYS}
+
 
 def agg_loss(
     loss_mat: torch.Tensor,
@@ -4151,7 +4155,10 @@ def compute_policy_loss_dppo_tv(
         pg_losses = pg_losses * rollout_is_weights
 
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode, **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
 
     pg_clipfrac = verl_F.masked_mean((1.0 - valid_mask).float(), response_mask)
@@ -4235,7 +4242,10 @@ def compute_policy_loss_dppo_kl(
         pg_losses = pg_losses * rollout_is_weights
 
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode, **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
 
     # For compatibility, return zero for pg_clipfrac_lower (not used in standard DPPO)
@@ -4310,7 +4320,10 @@ def compute_policy_loss_gspo(
 
     # for GSPO, we need to aggregate the loss at the sequence level (seq-mean-token-mean)
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode="seq-mean-token-mean", **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode="seq-mean-token-mean",
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
 
     # For compatibility, return zero for pg_clipfrac_lower (not used in standard GSPO)
@@ -4442,7 +4455,10 @@ def compute_policy_loss_gpg(
         pg_losses = pg_losses * rollout_is_weights
 
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode, **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
     return pg_loss, {}
 
@@ -4543,7 +4559,10 @@ def compute_policy_loss_clip_cov(
         pg_losses = pg_losses * rollout_is_weights
 
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode, **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
     pg_metrics = {
         "actor/pg_clipfrac": pg_clipfrac.detach().item(),
@@ -4624,7 +4643,10 @@ def compute_policy_loss_kl_cov(
         pg_losses = pg_losses * rollout_is_weights
 
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode, **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
     pg_metrics = {
         "actor/ppo_kl": ppo_kl_abs.detach().item(),
@@ -4765,7 +4787,10 @@ def compute_policy_loss_cispo(
         pg_losses = pg_losses * rollout_is_weights
 
     pg_loss = agg_loss(
-        loss_mat=pg_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode, **config.global_batch_info
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
 
     # For compatibility, return zero for pg_clipfrac_lower (not used in CISPO)
@@ -5422,7 +5447,7 @@ def compute_policy_loss_reinforce(
         loss_mat=pg_losses,
         loss_mask=response_mask,
         loss_agg_mode=loss_agg_mode,
-        **config.global_batch_info,
+        **get_agg_loss_kwargs(config.global_batch_info),
     )
 
     # Compute KL divergence between current and rollout policy

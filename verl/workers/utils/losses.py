@@ -21,6 +21,7 @@ from verl.trainer.ppo.core_algos import (
     agg_loss,
     build_value_loss_weights,
     compute_value_loss,
+    get_agg_loss_kwargs,
     get_policy_loss_fn,
     kl_penalty,
 )
@@ -98,19 +99,6 @@ def _slice_response_from_unpad_output(tensor: torch.Tensor, data: TensorDict) ->
 
     output = torch.stack(response_list, dim=0)
     return output
-
-# Add this small helper near agg_loss or in the same utils file
-_AGG_LOSS_KEYS = frozenset({
-    "dp_size",
-    "batch_num_tokens",
-    "global_batch_size",
-    "loss_scale_factor",
-})
-
-def get_agg_loss_kwargs(global_batch_info: dict) -> dict:
-    """Filter global_batch_info to only keys accepted by agg_loss."""
-    return {k: v for k, v in global_batch_info.items() if k in _AGG_LOSS_KEYS}
-
 
 def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None):
     """Computes ppo loss from model output (log_prob, entropy, values, etc. ) and old_log_probs from data."""
@@ -241,8 +229,10 @@ def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None)
     # add entropy loss
     if entropy is not None:
         entropy_loss = agg_loss(
-            loss_mat=entropy, loss_mask=response_mask, loss_agg_mode=loss_agg_mode,     **get_agg_loss_kwargs(config.global_batch_info),   # ← was **config.global_batch_info
-
+            loss_mat=entropy,
+            loss_mask=response_mask,
+            loss_agg_mode=loss_agg_mode,
+            **get_agg_loss_kwargs(config.global_batch_info),
         )
         entropy_coeff = config.entropy_coeff
         policy_loss -= entropy_coeff * entropy_loss
@@ -254,8 +244,10 @@ def ppo_loss(config: ActorConfig, model_output, data: TensorDict, dp_group=None)
         # compute kl loss
         kld = kl_penalty(logprob=log_prob, ref_logprob=ref_log_prob, kl_penalty=config.kl_loss_type)
         kl_loss = agg_loss(
-            loss_mat=kld, loss_mask=response_mask, loss_agg_mode=config.loss_agg_mode,     **get_agg_loss_kwargs(config.global_batch_info),   # ← was **config.global_batch_info
-
+            loss_mat=kld,
+            loss_mask=response_mask,
+            loss_agg_mode=config.loss_agg_mode,
+            **get_agg_loss_kwargs(config.global_batch_info),
         )
 
         policy_loss += kl_loss * config.kl_loss_coef
