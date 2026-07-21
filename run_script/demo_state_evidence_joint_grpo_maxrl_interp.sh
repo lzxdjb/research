@@ -34,24 +34,10 @@ SKIP_PIP_INSTALL=${SKIP_PIP_INSTALL:-0}
 if [[ "$SKIP_PIP_INSTALL" != "1" && "$SKIP_PIP_INSTALL" != "true" ]]; then
     pip install transformers==5.3.0 flash-linear-attention==0.4.2 triton==3.6.0
     pip install wikipedia
-    pip install sentence-transformers fastapi uvicorn
 fi
 
 export VLLM_RPC_TIMEOUT=3600
 export NCCL_TIMEOUT=7200
-
-STATE_PREDICTIVE_MAX_SEGMENT_LEN=${STATE_PREDICTIVE_MAX_SEGMENT_LEN:-512}
-STATE_PREDICTIVE_MIN_SEGMENT_LEN=${STATE_PREDICTIVE_MIN_SEGMENT_LEN:-2}
-STATE_PREDICTIVE_DINKELBACH_ITERS=${STATE_PREDICTIVE_DINKELBACH_ITERS:-6}
-STATE_PREDICTIVE_LOSS_TYPE=${STATE_PREDICTIVE_LOSS_TYPE:-state_level}
-STATE_PREDICTIVE_RATIO_MODE=${STATE_PREDICTIVE_RATIO_MODE:-geo_mean}
-STATE_PREDICTIVE_SEGMENT_BACKEND=${STATE_PREDICTIVE_SEGMENT_BACKEND:-torch}
-STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX=${STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX:-True}
-STATE_PREDICTIVE_USE_UPDATE_SKETCH=${STATE_PREDICTIVE_USE_UPDATE_SKETCH:-True}
-STATE_PREDICTIVE_NORMALIZE_FEATURES=${STATE_PREDICTIVE_NORMALIZE_FEATURES:-True}
-CALCULATE_UPDATE_SKETCH=${CALCULATE_UPDATE_SKETCH:-$STATE_PREDICTIVE_USE_UPDATE_SKETCH}
-UPDATE_SKETCH_DIM=${UPDATE_SKETCH_DIM:-64}
-UPDATE_SKETCH_SEED=${UPDATE_SKETCH_SEED:-17}
 
 MEGATRON_PARAM_OFFLOAD=${MEGATRON_PARAM_OFFLOAD:-True}
 MEGATRON_OPTIMIZER_OFFLOAD=${MEGATRON_OPTIMIZER_OFFLOAD:-True}
@@ -102,19 +88,7 @@ python3 -m verl.trainer.main_ppo --config-path=config \
     actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-32} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=${PPO_MICRO_BATCH_SIZE_PER_GPU:-2} \
     actor_rollout_ref.actor.entropy_coeff=0 \
-    actor_rollout_ref.actor.policy_loss.loss_mode=state_predictive_grpo \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_use_update_sketch=$STATE_PREDICTIVE_USE_UPDATE_SKETCH \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_normalize_features=$STATE_PREDICTIVE_NORMALIZE_FEATURES \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_min_segment_len=$STATE_PREDICTIVE_MIN_SEGMENT_LEN \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_max_segment_len=$STATE_PREDICTIVE_MAX_SEGMENT_LEN \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_dinkelbach_iters=$STATE_PREDICTIVE_DINKELBACH_ITERS \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_loss_type=$STATE_PREDICTIVE_LOSS_TYPE \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_ratio_mode=$STATE_PREDICTIVE_RATIO_MODE \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_segment_backend=$STATE_PREDICTIVE_SEGMENT_BACKEND \
-    +actor_rollout_ref.actor.policy_loss.state_predictive_precompute_state_index=$STATE_PREDICTIVE_PRECOMPUTE_STATE_INDEX \
-    actor_rollout_ref.actor.calculate_update_sketch=$CALCULATE_UPDATE_SKETCH \
-    actor_rollout_ref.actor.update_sketch_dim=$UPDATE_SKETCH_DIM \
-    actor_rollout_ref.actor.update_sketch_seed=$UPDATE_SKETCH_SEED \
+    actor_rollout_ref.actor.policy_loss.loss_mode=vanilla \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.actor.ppo_max_token_len_per_gpu=$max_token_len \
@@ -134,7 +108,6 @@ python3 -m verl.trainer.main_ppo --config-path=config \
     actor_rollout_ref.ref.megatron.param_offload=$REF_MEGATRON_PARAM_OFFLOAD \
     actor_rollout_ref.actor.megatron.dist_ckpt_optim_fully_reshardable=False \
     trainer.use_legacy_worker_impl=disable \
-    +actor_rollout_ref.rollout.multi_turn.use_seeupo=True \
     +actor_rollout_ref.actor.optim.override_optimizer_config.optimizer_offload_fraction=$OPTIMIZER_OFFLOAD_FRACTION \
     +actor_rollout_ref.actor.optim.override_optimizer_config.overlap_cpu_optimizer_d2h_h2d=$OVERLAP_CPU_OPTIMIZER_D2H_H2D \
     +actor_rollout_ref.actor.optim.override_optimizer_config.use_precision_aware_optimizer=$USE_PRECISION_AWARE_OPTIMIZER \
