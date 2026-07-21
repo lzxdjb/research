@@ -2243,9 +2243,6 @@ def compute_grpo_maxrl_bridge_outcome_advantage(
     eps = max(float(_cfg_get(config, "gmb_eps", _cfg_get(config, "lpo_eps", epsilon))), 1e-12)
     grid_size = max(int(_cfg_get(config, "gmb_grid_size", 64)), 2)
     max_logit_gap = max(float(_cfg_get(config, "gmb_max_logit_gap", 20.0)), eps)
-    lambda_scope = str(_cfg_get(config, "gmi_lambda_scope", "batch")).lower()
-    if lambda_scope not in {"batch", "global", "group", "per_group"}:
-        lambda_scope = "batch"
 
     with torch.no_grad():
         scores = token_level_rewards.sum(dim=-1).detach().to(device=device, dtype=torch.float32)
@@ -2396,6 +2393,9 @@ def compute_grpo_maxrl_interp_outcome_advantage(
     eps = max(float(_cfg_get(config, "gmb_eps", _cfg_get(config, "lpo_eps", epsilon))), 1e-12)
     grid_size = max(int(_cfg_get(config, "gmb_grid_size", 64)), 2)
     max_logit_gap = max(float(_cfg_get(config, "gmb_max_logit_gap", 20.0)), eps)
+    lambda_scope = str(_cfg_get(config, "gmi_lambda_scope", "batch")).lower()
+    if lambda_scope not in {"batch", "global", "group", "per_group"}:
+        lambda_scope = "batch"
 
     with torch.no_grad():
         scores = token_level_rewards.sum(dim=-1).detach().to(device=device, dtype=torch.float32)
