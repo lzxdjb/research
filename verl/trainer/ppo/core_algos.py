@@ -116,6 +116,7 @@ class AdvantageEstimator(str, Enum):
     LPO_ADAPTIVE = "lpo_adaptive"
     GRPO_MAXRL_BRIDGE = "grpo_maxrl_bridge"
     GRPO_MAXRL_INTERP = "grpo_maxrl_interp"
+    GRPO_MAXRL_ESS_INTERP = "grpo_maxrl_ess_interp"
     MSE_GATE = "mse_gate"
     BOS_GRPO = "batch_opt_subspace_grpo"
     MULTI_DOMAIN_BOS_GRPO = "multi_domain_bos_grpo"
@@ -2558,6 +2559,225 @@ def compute_grpo_maxrl_interp_outcome_advantage(
             "gmi/maxrl_rms_mean": maxrl_rms_values.mean().detach().item() if maxrl_rms_values.numel() else 0.0,
             "gmi/interp_rms_mean": interp_rms_values.mean().detach().item() if interp_rms_values.numel() else 0.0,
             "gmi/group_count": float(group_count),
+        }
+        if config is not None:
+            return advantages.to(dtype=reward_dtype), advantages.to(dtype=reward_dtype), metrics
+        return advantages.to(dtype=reward_dtype), advantages.to(dtype=reward_dtype)
+
+
+@register_adv_est(AdvantageEstimator.GRPO_MAXRL_ESS_INTERP)
+@register_adv_est("gmei")
+@register_adv_est("grpo_maxrl_ess_interpolated")
+def compute_grpo_maxrl_ess_interp_outcome_advantage(
+    token_level_rewards: torch.Tensor,
+    response_mask: torch.Tensor,
+    index: Optional[np.ndarray] = None,
+    epsilon: float = 1e-6,
+    norm_adv_by_std_in_grpo: bool = True,
+    config: Optional[AlgoConfig] = None,
+    responses: Optional[torch.Tensor] = None,
+    old_log_probs: Optional[torch.Tensor] = None,
+    **kwargs,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """ESS-calibrated adaptive GRPO-MaxRL interpolation.
+
+    This keeps the original bridge search objective G(a) * ESS(a), but maps the
+    selected target to the GRPO/MaxRL interpolation coefficient through the
+    target's relative ESS:
+
+        lambda = (ESS(a*) - P(max reward set)) / (1 - P(max reward set)).
+
+    The mapping has the exact endpoints lambda=1 at the GRPO target and
+    lambda=0 at the MaxRL/top-set target without depending on the raw scale of a.
+    """
+
+    del norm_adv_by_std_in_grpo, responses, old_log_probs, kwargs
+    device = token_level_rewards.device
+    reward_dtype = token_level_rewards.dtype
+    eps = max(float(_cfg_get(config, "gmb_eps", _cfg_get(config, "lpo_eps", epsilon))), 1e-12)
+    grid_size = max(int(_cfg_get(config, "gmb_grid_size", 64)), 2)
+    max_logit_gap = max(float(_cfg_get(config, "gmb_max_logit_gap", 20.0)), eps)
+    lambda_scope = str(_cfg_get(config, "gmei_lambda_scope", _cfg_get(config, "gmi_lambda_scope", "batch"))).lower()
+    if lambda_scope not in {"batch", "global", "group", "per_group"}:
+        lambda_scope = "batch"
+
+    with torch.no_grad():
+        scores = token_level_rewards.sum(dim=-1).detach().to(device=device, dtype=torch.float32)
+        if index is None:
+            gidx = torch.arange(scores.numel(), device=device, dtype=torch.long)
+        else:
+            gidx = as_torch_index(index, device=device)
+        if scores.numel() != gidx.numel():
+            raise ValueError(f"GMEI scores and group index length mismatch: {scores.numel()} vs {gidx.numel()}")
+
+        seq_adv = torch.zeros_like(scores)
+        grpo_seq_adv = torch.zeros_like(scores)
+        maxrl_seq_adv = torch.zeros_like(scores)
+        chosen_a = torch.zeros_like(scores)
+        lambda_values = torch.ones_like(scores)
+        p_max_values = torch.zeros_like(scores)
+        ess_values = torch.ones_like(scores)
+        reward_gain_values = torch.zeros_like(scores)
+        bridge_score_values = torch.zeros_like(scores)
+        grpo_rms_values = torch.zeros_like(scores)
+        maxrl_rms_values = torch.zeros_like(scores)
+        interp_rms_values = torch.zeros_like(scores)
+        valid_group_values = torch.zeros_like(scores)
+        group_count = int(torch.max(gidx).item()) + 1 if gidx.numel() > 0 else 0
+        reward_floor = _resolve_maxrl_reward_floor(scores, config).to(device=device, dtype=torch.float32)
+
+        for group_id in range(group_count):
+            mask = gidx == group_id
+            n = int(mask.sum().item())
+            if n <= 1:
+                continue
+
+            r = scores[mask]
+            mean_r = r.mean()
+            std_r = r.std(unbiased=True)
+            if not torch.isfinite(std_r) or bool((std_r <= eps).item()):
+                continue
+
+            grpo_adv = (r - mean_r) / std_r.clamp_min(eps)
+
+            utilities = (r - reward_floor).clamp(min=0.0)
+            utility_mean = utilities.mean()
+            if bool(torch.isfinite(utility_mean).item()) and bool((utility_mean > eps).item()):
+                maxrl_adv = (utilities - utility_mean) / utility_mean.clamp_min(eps)
+            else:
+                maxrl_adv = torch.zeros_like(r)
+
+            z = grpo_adv
+            span = (z.max() - z.min()).clamp_min(eps)
+            a_max = max_logit_gap / span
+            p = torch.full((n,), 1.0 / n, device=device, dtype=torch.float32)
+            log_p = torch.log(p)
+
+            max_reward = r.max()
+            max_mask = r >= (max_reward - eps)
+            p_max = p[max_mask].sum().clamp(min=eps, max=1.0)
+
+            def eval_magnitude(a_value: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                logits_1d = a_value * z
+                log_z_1d = torch.logsumexp(log_p + logits_1d, dim=0)
+                q_1d = torch.exp(log_p + logits_1d - log_z_1d)
+                gain_1d = torch.clamp(torch.sum(q_1d * r) - mean_r, min=0.0)
+                log_z2_1d = torch.logsumexp(log_p + 2.0 * logits_1d, dim=0)
+                eta_1d = torch.exp(2.0 * log_z_1d - log_z2_1d).clamp(min=eps, max=1.0)
+                return gain_1d * eta_1d, gain_1d, eta_1d
+
+            a_grid = torch.linspace(0.0, 1.0, grid_size, device=device, dtype=torch.float32).square() * a_max
+            logits = a_grid.unsqueeze(1) * z.unsqueeze(0)
+            log_z = torch.logsumexp(log_p.unsqueeze(0) + logits, dim=1)
+            q_grid = torch.exp(log_p.unsqueeze(0) + logits - log_z.unsqueeze(1))
+            gain = torch.clamp(torch.sum(q_grid * r.unsqueeze(0), dim=1) - mean_r, min=0.0)
+            log_z2 = torch.logsumexp(log_p.unsqueeze(0) + 2.0 * logits, dim=1)
+            eta = torch.exp(2.0 * log_z - log_z2).clamp(min=eps, max=1.0)
+            objective = gain * eta
+
+            best_idx = int(torch.argmax(objective).item())
+            best_a = a_grid[best_idx]
+            best_gain = gain[best_idx]
+            best_eta = eta[best_idx]
+            best_objective = objective[best_idx]
+
+            refine_steps = int(_cfg_get(config, "gmb_refine_steps", 16))
+            if refine_steps > 0:
+                lo_idx = max(best_idx - 1, 0)
+                hi_idx = min(best_idx + 1, grid_size - 1)
+                lo = a_grid[lo_idx]
+                hi = a_grid[hi_idx]
+                if bool((hi > lo).item()):
+                    golden = (math.sqrt(5.0) - 1.0) / 2.0
+                    c = hi - golden * (hi - lo)
+                    d = lo + golden * (hi - lo)
+                    fc, _, _ = eval_magnitude(c)
+                    fd, _, _ = eval_magnitude(d)
+                    for _ in range(refine_steps):
+                        if bool((fc < fd).item()):
+                            lo = c
+                            c = d
+                            fc = fd
+                            d = lo + golden * (hi - lo)
+                            fd, _, _ = eval_magnitude(d)
+                        else:
+                            hi = d
+                            d = c
+                            fd = fc
+                            c = hi - golden * (hi - lo)
+                            fc, _, _ = eval_magnitude(c)
+
+                    candidate_as = torch.stack([a_grid[best_idx], lo, hi, c, d])
+                    candidate_vals = []
+                    candidate_payloads = []
+                    for a_candidate in candidate_as:
+                        payload = eval_magnitude(a_candidate)
+                        candidate_vals.append(payload[0])
+                        candidate_payloads.append(payload)
+                    refined_idx = int(torch.argmax(torch.stack(candidate_vals)).item())
+                    best_a = candidate_as[refined_idx]
+                    best_objective, best_gain, best_eta = candidate_payloads[refined_idx]
+
+            lambda_value = ((best_eta - p_max) / (1.0 - p_max).clamp_min(eps)).clamp(min=0.0, max=1.0)
+            interp_adv = lambda_value * grpo_adv + (1.0 - lambda_value) * maxrl_adv
+
+            grpo_seq_adv[mask] = grpo_adv
+            maxrl_seq_adv[mask] = maxrl_adv
+            if lambda_scope in {"group", "per_group"}:
+                seq_adv[mask] = interp_adv
+            chosen_a[mask] = best_a
+            lambda_values[mask] = lambda_value
+            p_max_values[mask] = p_max
+            ess_values[mask] = best_eta
+            reward_gain_values[mask] = best_gain
+            bridge_score_values[mask] = best_objective
+            grpo_rms_values[mask] = torch.sqrt(grpo_adv.square().mean().clamp_min(0.0))
+            maxrl_rms_values[mask] = torch.sqrt(maxrl_adv.square().mean().clamp_min(0.0))
+            interp_rms_values[mask] = torch.sqrt(interp_adv.square().mean().clamp_min(0.0))
+            valid_group_values[mask] = 1.0
+
+        if lambda_scope in {"batch", "global"}:
+            valid = valid_group_values > 0
+            if bool(valid.any().item()):
+                batch_lambda = lambda_values[valid].mean().clamp(min=0.0, max=1.0)
+                batch_a = chosen_a[valid].mean()
+                batch_p_max = p_max_values[valid].mean()
+            else:
+                batch_lambda = torch.ones((), device=device, dtype=torch.float32)
+                batch_a = torch.zeros((), device=device, dtype=torch.float32)
+                batch_p_max = torch.zeros((), device=device, dtype=torch.float32)
+            seq_adv = batch_lambda * grpo_seq_adv + (1.0 - batch_lambda) * maxrl_seq_adv
+            interp_rms = torch.sqrt(seq_adv.square().mean().clamp_min(0.0))
+            lambda_values = torch.where(valid, torch.full_like(lambda_values, batch_lambda.item()), lambda_values)
+            interp_rms_values = torch.where(valid, torch.full_like(interp_rms_values, interp_rms.item()), interp_rms_values)
+        else:
+            valid = valid_group_values > 0
+            batch_a = chosen_a[valid].mean() if bool(valid.any().item()) else torch.zeros(
+                (), device=device, dtype=torch.float32
+            )
+            batch_lambda = lambda_values[valid].mean() if bool(valid.any().item()) else torch.ones(
+                (), device=device, dtype=torch.float32
+            )
+            batch_p_max = p_max_values[valid].mean() if bool(valid.any().item()) else torch.zeros(
+                (), device=device, dtype=torch.float32
+            )
+
+        advantages = seq_adv.unsqueeze(-1) * response_mask
+        metrics = {
+            "gmei/a_mean": chosen_a.mean().detach().item() if chosen_a.numel() else 0.0,
+            "gmei/lambda_mean": lambda_values.mean().detach().item() if lambda_values.numel() else 1.0,
+            "gmei/batch_a": batch_a.detach().item(),
+            "gmei/batch_lambda": batch_lambda.detach().item(),
+            "gmei/p_max_mean": p_max_values.mean().detach().item() if p_max_values.numel() else 0.0,
+            "gmei/batch_p_max": batch_p_max.detach().item(),
+            "gmei/lambda_scope_is_batch": 1.0 if lambda_scope in {"batch", "global"} else 0.0,
+            "gmei/relative_ess_mean": ess_values.mean().detach().item() if ess_values.numel() else 1.0,
+            "gmei/reward_gain_mean": reward_gain_values.mean().detach().item() if reward_gain_values.numel() else 0.0,
+            "gmei/bridge_score_mean": bridge_score_values.mean().detach().item() if bridge_score_values.numel() else 0.0,
+            "gmei/grpo_rms_mean": grpo_rms_values.mean().detach().item() if grpo_rms_values.numel() else 0.0,
+            "gmei/maxrl_rms_mean": maxrl_rms_values.mean().detach().item() if maxrl_rms_values.numel() else 0.0,
+            "gmei/interp_rms_mean": interp_rms_values.mean().detach().item() if interp_rms_values.numel() else 0.0,
+            "gmei/group_count": float(group_count),
         }
         if config is not None:
             return advantages.to(dtype=reward_dtype), advantages.to(dtype=reward_dtype), metrics
